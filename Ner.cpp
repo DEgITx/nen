@@ -12,6 +12,7 @@ public:
 	{
 		double weight;
 		double deltaWeight = 0.0;
+		double e = 0.0;
 	};
 	Neuron(unsigned index);
 	Neuron(unsigned index, unsigned numWeights);
@@ -35,7 +36,7 @@ private:
 	unsigned m_index;
 	static double rate;
 	static double momentum;
-	double m_gradient;
+	double m_delta;
 	double m_output;
 	std::vector<Connection> m_outputWeights;
 };
@@ -101,13 +102,13 @@ void Neuron::forward(const Layer &prevLayer)
 void Neuron::calculateOutputGradients(double targetVals)
 {
 	double delta = targetVals - m_output;
-	m_gradient = delta * transferFunctionDerivative(m_output);
+	m_delta = delta * transferFunctionDerivative(m_output);
 }
 
 void Neuron::calculateHiddenGradients(const Layer &nextLayer)
 {
 	double dow = sumDOW(nextLayer);
-	m_gradient = dow * transferFunctionDerivative(m_output);
+	m_delta = dow * transferFunctionDerivative(m_output);
 }
 
 double Neuron::sumDOW(const Layer &nextLayer) const
@@ -115,7 +116,7 @@ double Neuron::sumDOW(const Layer &nextLayer) const
 	double sum = 0.0;
 	for (unsigned n = 0; n < nextLayer.size() - 1; ++n)
 	{
-		sum += m_outputWeights[n].weight * nextLayer[n].m_gradient;
+		sum += m_outputWeights[n].weight * nextLayer[n].m_delta;
 	}
 	return sum;
 }
@@ -126,8 +127,13 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 	{
 		Neuron &neuron = prevLayer[n];
 		double oldDeltaWeight = neuron.m_outputWeights[m_index].deltaWeight;
+		double gradient = neuron.m_output * m_delta;
 
-		double newDeltaWeight = rate * neuron.m_output * m_gradient + momentum * oldDeltaWeight;
+		//double& e = neuron.m_outputWeights[m_index].e;
+		//e = momentum * e + (1 - momentum) * pow(gradient, 2);
+		//double newDeltaWeight = rate * gradient / sqrt(e + 0.01);
+
+		double newDeltaWeight = rate * gradient + momentum * oldDeltaWeight;
 		neuron.m_outputWeights[m_index].deltaWeight = newDeltaWeight;
 		neuron.m_outputWeights[m_index].weight += newDeltaWeight;
 	}
@@ -152,6 +158,7 @@ private:
 	double m_recentAverageError;
 	static double m_recentAverageSmoothingFactor;
 	bool m_with_bias;
+	unsigned error_line = 0;
 };
 
 NeuronNetwork::NeuronNetwork() : m_with_bias(true)
@@ -273,7 +280,7 @@ void NeuronNetwork::backPropagation(const std::vector<double> &targetVals)
 		m_error += delta *delta;
 	}
 	m_error /= outputLayer.size() - 1; // get average error squared
-	std::cout << m_error * 100 << std::endl;
+	std::cout << ++error_line << ": " << m_error * 100 << std::endl;
 	//m_error = sqrt(m_error); // RMS
 
 	// Implement a recent average measurement:
@@ -440,7 +447,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	NeuronNetwork n1(2, 1, 2, 3);
-	/*
+
 	for(int i = 0; i < 10000; i++)
 		n1.train({ 
 			{1, 0},
@@ -457,9 +464,9 @@ int main()
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
-	*/
-	
-	for (int i = 0; i < 9000; i++)
+
+	/*
+	for (int i = 0; i < 1; i++)
 	{
 		n1.train({
 			normalizeInput({ 3, 3 }, 0, 10),
@@ -468,6 +475,7 @@ int main()
 			normalizeInput({ 4, 0 }, 0, 10),
 			normalizeInput({ 5, 5 }, 0, 10),
 			normalizeInput({ 2, 3 }, 0, 10),
+			normalizeInput({ 0, 0 }, 0, 10),
 		}, {
 			normalizeInput(std::vector<double>{ 6 }, 0, 10),
 			normalizeInput(std::vector<double>{ 9 }, 0, 10),
@@ -475,6 +483,7 @@ int main()
 			normalizeInput(std::vector<double>{ 4 }, 0, 10),
 			normalizeInput(std::vector<double>{ 10 }, 0, 10),
 			normalizeInput(std::vector<double>{ 5 }, 0, 10),
+			normalizeInput(std::vector<double>{ 0 }, 0, 10),
 		});
 	}
 
@@ -491,9 +500,10 @@ int main()
 	NeuronNetwork n2;
 	n2.loadFile("example.txt");
 	
-	n2.forward(normalizeInput({ 2, 2 }, 0, 10));
+	n2.forward(normalizeInput({ 0, 6 }, 0, 10));
 	for (auto& o : n2.output())
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
+		*/
 
     return 0;
 }
