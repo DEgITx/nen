@@ -14,6 +14,7 @@ public:
 		double deltaWeight = 0.0;
 	};
 	Neuron(unsigned index);
+	Neuron(unsigned index, unsigned numWeights);
 	Neuron(unsigned index, const std::vector<double>& weights);
 	Neuron(unsigned index, const std::vector<Connection>& weights);
 	typedef std::vector<Neuron> Layer;
@@ -24,6 +25,7 @@ public:
 	void calculateHiddenGradients(const Layer &nextLayer);
 	void updateInputWeights(Layer &prevLayer);
 	const std::vector<Connection>& connections() const { return m_outputWeights; };
+	static double randomWeight(void) { return rand() / double(RAND_MAX); }
 protected:
 	static double transferFunction(double x);
 	static double transferFunctionDerivative(double x);
@@ -56,6 +58,16 @@ double Neuron::transferFunctionDerivative(double x)
 Neuron::Neuron(unsigned index) : m_index(index)
 {
 
+}
+
+Neuron::Neuron(unsigned index, unsigned numWeights) : m_index(index)
+{
+	for (unsigned i = 0; i < numWeights; ++i)
+	{
+		Connection connection;
+		connection.weight = randomWeight();
+		m_outputWeights.push_back(connection);
+	}
 }
 
 Neuron::Neuron(unsigned index, const std::vector<double>& weights) : m_index(index)
@@ -124,7 +136,7 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 class NeuronNetwork
 {
 public:
-	NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers, unsigned sizeNeurons, std::vector<double> weights);
+	NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers, unsigned sizeNeurons, std::vector<double> weights = std::vector<double>(), bool with_bias = true);
 	NeuronNetwork();
 	void forward(const std::vector<double> &inputVals);
 	void backPropagation(const std::vector<double> &targetVals);
@@ -133,35 +145,53 @@ public:
 	void train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals);
 	void saveFile(const std::string& file);
 	void loadFile(const std::string& file);
+	void setWithBias(bool wb) { m_with_bias = wb; };
 private:
 	std::vector<Neuron::Layer> m_layers;
 	double m_error;
 	double m_recentAverageError;
 	static double m_recentAverageSmoothingFactor;
+	bool m_with_bias;
 };
 
-NeuronNetwork::NeuronNetwork()
+NeuronNetwork::NeuronNetwork() : m_with_bias(true)
 {
 
 }
 
-NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers, unsigned sizeNeurons, std::vector<double> weights)
+NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers, unsigned sizeNeurons, std::vector<double> weights, bool with_bias) : m_with_bias(with_bias)
 {
 	Neuron::Layer inputLayer;
 	unsigned w = 0;
 	for (unsigned i = 0; i < inputs; i++)
 	{
 		std::vector<double> ws;
-		for (unsigned n = 0; n < sizeNeurons; n++)
+		if (weights.size() > 0)
 		{
-			ws.push_back(weights[w++]);
+			for (unsigned n = 0; n < sizeNeurons; n++)
+			{
+				ws.push_back(weights[w++]);
+			}
+			inputLayer.push_back(Neuron(i, ws));
 		}
-		inputLayer.push_back(Neuron(i, ws));
+		else
+		{
+			inputLayer.push_back(Neuron(i, sizeNeurons));
+		}
 		if (i == inputs - 1)
 		{
-			Neuron neur = Neuron(i + 1, ws);
-			neur.setOutputValue(0);
-			inputLayer.push_back(neur);
+			if (weights.size() > 0)
+			{
+				Neuron neur = Neuron(i + 1, ws);
+				neur.setOutputValue(m_with_bias ? 1 : 0);
+				inputLayer.push_back(neur);
+			}
+			else
+			{
+				Neuron neur = Neuron(i + 1, sizeNeurons);
+				neur.setOutputValue(m_with_bias ? 1 : 0);
+				inputLayer.push_back(neur);
+			}
 		}
 	}
 	m_layers.push_back(inputLayer);
@@ -172,16 +202,33 @@ NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers,
 		for (unsigned neurons = 0; neurons < sizeNeurons; neurons++)
 		{
 			std::vector<double> ws;
-			for (unsigned n = 0; n < ((layer < layers - 1) ? sizeNeurons : outputs); n++)
+			unsigned connections = (layer < layers - 1) ? sizeNeurons : outputs;
+			if (weights.size() > 0)
 			{
-				ws.push_back(weights[w++]);
+				for (unsigned n = 0; n < connections; n++)
+				{
+					ws.push_back(weights[w++]);
+				}
+				newLayer.push_back(Neuron(neurons, ws));
 			}
-			newLayer.push_back(Neuron(neurons, ws));
+			else
+			{
+				newLayer.push_back(Neuron(neurons, connections));
+			}
 			if (neurons == sizeNeurons - 1)
 			{
-				Neuron neur = Neuron(neurons + 1, ws);
-				neur.setOutputValue(0);
-				newLayer.push_back(neur);
+				if (weights.size() > 0)
+				{
+					Neuron neur = Neuron(neurons + 1, ws);
+					neur.setOutputValue(m_with_bias ? 1 : 0);
+					newLayer.push_back(neur);
+				}
+				else
+				{
+					Neuron neur = Neuron(neurons + 1, connections);
+					neur.setOutputValue(m_with_bias ? 1 : 0);
+					newLayer.push_back(neur);
+				}
 			}
 		}
 		m_layers.push_back(newLayer);
@@ -227,7 +274,7 @@ void NeuronNetwork::backPropagation(const std::vector<double> &targetVals)
 	}
 	m_error /= outputLayer.size() - 1; // get average error squared
 	std::cout << m_error * 100 << std::endl;
-	m_error = sqrt(m_error); // RMS
+	//m_error = sqrt(m_error); // RMS
 
 	// Implement a recent average measurement:
 	//m_recentAverageError =
@@ -334,7 +381,7 @@ void NeuronNetwork::loadFile(const std::string& file)
 		}
 		Neuron neur = Neuron(i, connections);
 		if (i == inputs - 1)
-			neur.setOutputValue(0);
+			neur.setOutputValue(m_with_bias ? 1 : 0);
 		m_layers.back().push_back(neur);
 	}
 	for (unsigned j = 0; j < layers - 2; ++j)
@@ -352,7 +399,7 @@ void NeuronNetwork::loadFile(const std::string& file)
 			}
 			Neuron neur = Neuron(i, connections);
 			if (i == inputs - 1)
-				neur.setOutputValue(0);
+				neur.setOutputValue(m_with_bias ? 1 : 0);
 			m_layers.back().push_back(neur);
 		}
 	}
@@ -366,21 +413,21 @@ void NeuronNetwork::loadFile(const std::string& file)
 
 int main()
 {
-	NeuronNetwork n1(2, 1, 1, 2, {0.45, 0.78, -0.12, 0.13, 1.5, -2.3});
-	for(int i = 0; i < 100; i++)
+	NeuronNetwork n1(2, 1, 1, 2, {0.45, 0.78, -0.12, 0.13, 1.5, -2.3}, false);
+	for(int i = 0; i < 2; i++)
 		n1.train({ 
 			{1, 0},
-			{1, 0}
+			{1, 0},
 		}, { 
 			{ 1 },
-			{ 1 }
+			{ 1 },
 		});
 	
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
 
-	//n1.saveFile("example.txt");
+	n1.saveFile("example.txt");
 	//NeuronNetwork n2;
 	//n2.loadFile("example.txt");
 	//n2.train({ 1, 0 }, { 1 });
