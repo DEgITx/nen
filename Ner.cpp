@@ -5,6 +5,11 @@
 #include <iostream>
 #include <fstream>
 
+enum TrainingAlgorithm {
+	StochasticGradient = 0,
+	RMSProp
+};
+
 class Neuron
 {
 public:
@@ -14,10 +19,10 @@ public:
 		double deltaWeight = 0.0;
 		double e = 0.0;
 	};
-	Neuron(unsigned index);
-	Neuron(unsigned index, unsigned numWeights);
-	Neuron(unsigned index, const std::vector<double>& weights);
-	Neuron(unsigned index, const std::vector<Connection>& weights);
+	Neuron(unsigned index, TrainingAlgorithm algorithm = StochasticGradient);
+	Neuron(unsigned index, unsigned numWeights, TrainingAlgorithm algorithm = StochasticGradient);
+	Neuron(unsigned index, const std::vector<double>& weights, TrainingAlgorithm algorithm = StochasticGradient);
+	Neuron(unsigned index, const std::vector<Connection>& weights, TrainingAlgorithm algorithm = StochasticGradient);
 	typedef std::vector<Neuron> Layer;
 	void forward(const Layer &prevLayer); // calculate value throwth neuron network
 	void setOutputValue(double val) { m_output = val; }
@@ -27,6 +32,9 @@ public:
 	void updateInputWeights(Layer &prevLayer);
 	const std::vector<Connection>& connections() const { return m_outputWeights; };
 	static double randomWeight(void) { return rand() / double(RAND_MAX); }
+	void setTrainingAlgorithm(TrainingAlgorithm algorithm) {
+		m_algorithm = algorithm;
+	};
 protected:
 	static double transferFunction(double x);
 	static double transferFunctionDerivative(double x);
@@ -39,6 +47,7 @@ private:
 	double m_delta;
 	double m_output;
 	std::vector<Connection> m_outputWeights;
+	TrainingAlgorithm m_algorithm;
 };
 
 //double Neuron::rate = 0.15;
@@ -56,12 +65,12 @@ double Neuron::transferFunctionDerivative(double x)
 	return (1.0 - x) * x;
 }
 
-Neuron::Neuron(unsigned index) : m_index(index)
+Neuron::Neuron(unsigned index, TrainingAlgorithm algorithm) : m_index(index), m_algorithm(algorithm)
 {
 
 }
 
-Neuron::Neuron(unsigned index, unsigned numWeights) : m_index(index)
+Neuron::Neuron(unsigned index, unsigned numWeights, TrainingAlgorithm algorithm) : m_index(index), m_algorithm(algorithm)
 {
 	for (unsigned i = 0; i < numWeights; ++i)
 	{
@@ -71,7 +80,7 @@ Neuron::Neuron(unsigned index, unsigned numWeights) : m_index(index)
 	}
 }
 
-Neuron::Neuron(unsigned index, const std::vector<double>& weights) : m_index(index)
+Neuron::Neuron(unsigned index, const std::vector<double>& weights, TrainingAlgorithm algorithm) : m_index(index), m_algorithm(algorithm)
 {
 	for (double w : weights)
 	{
@@ -81,7 +90,7 @@ Neuron::Neuron(unsigned index, const std::vector<double>& weights) : m_index(ind
 	}
 }
 
-Neuron::Neuron(unsigned index, const std::vector<Connection>& weights) : m_index(index)
+Neuron::Neuron(unsigned index, const std::vector<Connection>& weights, TrainingAlgorithm algorithm) : m_index(index), m_algorithm(algorithm)
 {
 	for (const Connection& w : weights)
 	{
@@ -128,12 +137,29 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 		Neuron &neuron = prevLayer[n];
 		double oldDeltaWeight = neuron.m_outputWeights[m_index].deltaWeight;
 		double gradient = neuron.m_output * m_delta;
+		double newDeltaWeight;
 
-		//double& e = neuron.m_outputWeights[m_index].e;
-		//e = momentum * e + (1 - momentum) * pow(gradient, 2);
-		//double newDeltaWeight = rate * gradient / sqrt(e + 0.01);
+		switch (m_algorithm)
+		{
+		case StochasticGradient:
+		{
+			newDeltaWeight = rate * gradient + momentum * oldDeltaWeight;
+			
+			break;
+		}
+		case RMSProp:
+		{
+			double& e = neuron.m_outputWeights[m_index].e;
+			e = momentum * e + (1 - momentum) * pow(gradient, 2);
+			newDeltaWeight = rate * gradient / sqrt(e + 0.01);
+			
+			break;
+		}
+		default:
+			assert(false);
+			break;
+		}
 
-		double newDeltaWeight = rate * gradient + momentum * oldDeltaWeight;
 		neuron.m_outputWeights[m_index].deltaWeight = newDeltaWeight;
 		neuron.m_outputWeights[m_index].weight += newDeltaWeight;
 	}
@@ -153,6 +179,7 @@ public:
 	void saveFile(const std::string& file);
 	void loadFile(const std::string& file);
 	void setWithBias(bool wb) { m_with_bias = wb; };
+	void setTrainingAlgorithm(TrainingAlgorithm algo);
 private:
 	std::vector<Neuron::Layer> m_layers;
 	double m_error;
@@ -160,6 +187,7 @@ private:
 	static double m_recentAverageSmoothingFactor;
 	bool m_with_bias;
 	unsigned error_line = 0;
+	TrainingAlgorithm m_algorithm = StochasticGradient;
 };
 
 NeuronNetwork::NeuronNetwork() : m_with_bias(true)
@@ -180,23 +208,23 @@ NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers,
 			{
 				ws.push_back(weights[w++]);
 			}
-			inputLayer.push_back(Neuron(i, ws));
+			inputLayer.push_back(Neuron(i, ws, m_algorithm));
 		}
 		else
 		{
-			inputLayer.push_back(Neuron(i, sizeNeurons));
+			inputLayer.push_back(Neuron(i, sizeNeurons, m_algorithm));
 		}
 		if (i == inputs - 1)
 		{
 			if (weights.size() > 0)
 			{
-				Neuron neur = Neuron(i + 1, ws);
+				Neuron neur = Neuron(i + 1, ws, m_algorithm);
 				neur.setOutputValue(m_with_bias ? 1 : 0);
 				inputLayer.push_back(neur);
 			}
 			else
 			{
-				Neuron neur = Neuron(i + 1, sizeNeurons);
+				Neuron neur = Neuron(i + 1, sizeNeurons, m_algorithm);
 				neur.setOutputValue(m_with_bias ? 1 : 0);
 				inputLayer.push_back(neur);
 			}
@@ -217,23 +245,23 @@ NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers,
 				{
 					ws.push_back(weights[w++]);
 				}
-				newLayer.push_back(Neuron(neurons, ws));
+				newLayer.push_back(Neuron(neurons, ws, m_algorithm));
 			}
 			else
 			{
-				newLayer.push_back(Neuron(neurons, connections));
+				newLayer.push_back(Neuron(neurons, connections, m_algorithm));
 			}
 			if (neurons == sizeNeurons - 1)
 			{
 				if (weights.size() > 0)
 				{
-					Neuron neur = Neuron(neurons + 1, ws);
+					Neuron neur = Neuron(neurons + 1, ws, m_algorithm);
 					neur.setOutputValue(m_with_bias ? 1 : 0);
 					newLayer.push_back(neur);
 				}
 				else
 				{
-					Neuron neur = Neuron(neurons + 1, connections);
+					Neuron neur = Neuron(neurons + 1, connections, m_algorithm);
 					neur.setOutputValue(m_with_bias ? 1 : 0);
 					newLayer.push_back(neur);
 				}
@@ -245,9 +273,9 @@ NeuronNetwork::NeuronNetwork(unsigned inputs, unsigned outputs, unsigned layers,
 	Neuron::Layer outLayer;
 	for (unsigned i = 0; i < outputs; i++)
 	{
-		outLayer.push_back(Neuron(i));
+		outLayer.push_back(Neuron(i, m_algorithm));
 	}
-	outLayer.push_back(Neuron(outputs));
+	outLayer.push_back(Neuron(outputs, m_algorithm));
 	m_layers.push_back(outLayer);
 }
 
@@ -435,6 +463,18 @@ void NeuronNetwork::loadFile(const std::string& file)
 	f.close();
 }
 
+void NeuronNetwork::setTrainingAlgorithm(TrainingAlgorithm algo)
+{
+	m_algorithm = algo;
+	for (Neuron::Layer& layer : m_layers)
+	{
+		for (Neuron& neuron : layer)
+		{
+			neuron.setTrainingAlgorithm(algo);
+		}
+	}
+}
+
 double normalizeInput(double x, double max, double min)
 {
 	return (x - min) / (max - min);
@@ -464,6 +504,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	NeuronNetwork n1(2, 1, 2, 3);
+	//n1.setTrainingAlgorithm(RMSProp);
 	/*
 	for(int i = 0; i < 10000; i++)
 		n1.train({ 
