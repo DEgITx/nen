@@ -398,7 +398,7 @@ void NeuronNetwork::loadFile(const std::string& file)
 				connections.push_back(connection);
 			}
 			Neuron neur = Neuron(i, connections);
-			if (i == inputs - 1)
+			if (i == neurons - 1)
 				neur.setOutputValue(m_with_bias ? 1 : 0);
 			m_layers.back().push_back(neur);
 		}
@@ -411,25 +411,89 @@ void NeuronNetwork::loadFile(const std::string& file)
 	f.close();
 }
 
+double normalizeInput(double x, double max, double min)
+{
+	return (x - min) / (max - min);
+}
+
+std::vector<double> normalizeInput(const std::vector<double> &xArray, double max, double min)
+{
+	std::vector<double> xSes;
+	for (double x : xArray)
+		xSes.push_back(normalizeInput(x, max, min));
+	return xSes;
+}
+
+double deNormalizeOutput(double y, double max, double min)
+{
+	return min + y * (max - min);
+}
+
+std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double max, double min)
+{
+	std::vector<double> ySes;
+	for (double y : yArray)
+		ySes.push_back(deNormalizeOutput(y, max, min));
+	return ySes;
+}
+
 int main()
 {
-	NeuronNetwork n1(2, 1, 1, 2, {0.45, 0.78, -0.12, 0.13, 1.5, -2.3}, false);
-	for(int i = 0; i < 2; i++)
+	NeuronNetwork n1(2, 1, 2, 3);
+	/*
+	for(int i = 0; i < 10000; i++)
 		n1.train({ 
 			{1, 0},
-			{1, 0},
+			{0, 1},
+			{0, 0},
+			{1, 1},
 		}, { 
 			{ 1 },
 			{ 1 },
+			{ 0 },
+			{ 0 },
 		});
 	
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
+	*/
+	
+	for (int i = 0; i < 9000; i++)
+	{
+		n1.train({
+			normalizeInput({ 3, 3 }, 0, 10),
+			normalizeInput({ 2, 7 }, 0, 10),
+			normalizeInput({ 6, 1 }, 0, 10),
+			normalizeInput({ 4, 0 }, 0, 10),
+			normalizeInput({ 5, 5 }, 0, 10),
+			normalizeInput({ 2, 3 }, 0, 10),
+		}, {
+			normalizeInput(std::vector<double>{ 6 }, 0, 10),
+			normalizeInput(std::vector<double>{ 9 }, 0, 10),
+			normalizeInput(std::vector<double>{ 7 }, 0, 10),
+			normalizeInput(std::vector<double>{ 4 }, 0, 10),
+			normalizeInput(std::vector<double>{ 10 }, 0, 10),
+			normalizeInput(std::vector<double>{ 5 }, 0, 10),
+		});
+	}
+
+	n1.forward(normalizeInput({ 2, 2 }, 0, 10));
+	for (auto& o : n1.output())
+		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
 
 	n1.saveFile("example.txt");
-	//NeuronNetwork n2;
-	//n2.loadFile("example.txt");
-	//n2.train({ 1, 0 }, { 1 });
+
+	//n1.train({ 1, 0 }, { 1 });
+	//n1.train({ 1, 0 }, { 1 });
+	//n1.train({ 1, 0 }, { 1 });
+	//n1.saveFile("example.txt");
+	NeuronNetwork n2;
+	n2.loadFile("example.txt");
+	
+	n2.forward(normalizeInput({ 2, 2 }, 0, 10));
+	for (auto& o : n2.output())
+		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
+
     return 0;
 }
