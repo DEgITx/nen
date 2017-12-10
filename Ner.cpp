@@ -147,8 +147,9 @@ public:
 	void forward(const std::vector<double> &inputVals);
 	void backPropagation(const std::vector<double> &targetVals);
 	std::vector<double> output() const;
-	void train(const std::vector<double> &inputVals, const std::vector<double> &targetVals);
-	void train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals);
+	double train(const std::vector<double> &inputVals, const std::vector<double> &targetVals);
+	std::vector<double> train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals);
+	void trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent);
 	void saveFile(const std::string& file);
 	void loadFile(const std::string& file);
 	void setWithBias(bool wb) { m_with_bias = wb; };
@@ -330,19 +331,35 @@ std::vector<double> NeuronNetwork::output() const
 	return out;
 }
 
-void NeuronNetwork::train(const std::vector<double> &inputVals, const std::vector<double> &targetVals)
+double NeuronNetwork::train(const std::vector<double> &inputVals, const std::vector<double> &targetVals)
 {
 	forward(inputVals);
 	backPropagation(targetVals);
+	return m_error;
 }
 
-void NeuronNetwork::train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals)
+std::vector<double> NeuronNetwork::train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals)
 {
 	assert(inputVals.size() == targetVals.size());
+	std::vector<double> errors;
 	for (unsigned n = 0; n < inputVals.size(); ++n)
 	{
-		train(inputVals[n], targetVals[n]);
+		errors.push_back(train(inputVals[n], targetVals[n]));
 	}
+	return errors;
+}
+
+void NeuronNetwork::trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent)
+{
+	std::vector<double> errors;
+	do {
+		errors = train(inputVals, targetVals);
+	} while (([&]() {
+		for (auto error : errors)
+			if (error * 100 >= errorPercent)
+				return true;
+		return false;
+	})());
 }
 
 void NeuronNetwork::saveFile(const std::string& file)
@@ -447,7 +464,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	NeuronNetwork n1(2, 1, 2, 3);
-
+	/*
 	for(int i = 0; i < 10000; i++)
 		n1.train({ 
 			{1, 0},
@@ -464,28 +481,26 @@ int main()
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
+	*/
 
-	/*
-	for (int i = 0; i < 1; i++)
-	{
-		n1.train({
-			normalizeInput({ 3, 3 }, 0, 10),
-			normalizeInput({ 2, 7 }, 0, 10),
-			normalizeInput({ 6, 1 }, 0, 10),
-			normalizeInput({ 4, 0 }, 0, 10),
-			normalizeInput({ 5, 5 }, 0, 10),
-			normalizeInput({ 2, 3 }, 0, 10),
-			normalizeInput({ 0, 0 }, 0, 10),
-		}, {
-			normalizeInput(std::vector<double>{ 6 }, 0, 10),
-			normalizeInput(std::vector<double>{ 9 }, 0, 10),
-			normalizeInput(std::vector<double>{ 7 }, 0, 10),
-			normalizeInput(std::vector<double>{ 4 }, 0, 10),
-			normalizeInput(std::vector<double>{ 10 }, 0, 10),
-			normalizeInput(std::vector<double>{ 5 }, 0, 10),
-			normalizeInput(std::vector<double>{ 0 }, 0, 10),
-		});
-	}
+	
+	n1.trainWhileError({
+		normalizeInput({ 3, 3 }, 0, 10),
+		normalizeInput({ 2, 7 }, 0, 10),
+		normalizeInput({ 6, 1 }, 0, 10),
+		normalizeInput({ 4, 0 }, 0, 10),
+		normalizeInput({ 5, 5 }, 0, 10),
+		normalizeInput({ 2, 3 }, 0, 10),
+		normalizeInput({ 0, 0 }, 0, 10),
+	}, {
+		normalizeInput(std::vector<double>{ 6 }, 0, 10),
+		normalizeInput(std::vector<double>{ 9 }, 0, 10),
+		normalizeInput(std::vector<double>{ 7 }, 0, 10),
+		normalizeInput(std::vector<double>{ 4 }, 0, 10),
+		normalizeInput(std::vector<double>{ 10 }, 0, 10),
+		normalizeInput(std::vector<double>{ 5 }, 0, 10),
+		normalizeInput(std::vector<double>{ 0 }, 0, 10),
+	}, 0.9);
 
 	n1.forward(normalizeInput({ 2, 2 }, 0, 10));
 	for (auto& o : n1.output())
@@ -503,7 +518,6 @@ int main()
 	n2.forward(normalizeInput({ 0, 6 }, 0, 10));
 	for (auto& o : n2.output())
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
-		*/
 
     return 0;
 }
