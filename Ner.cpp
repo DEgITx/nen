@@ -7,7 +7,9 @@
 
 enum TrainingAlgorithm {
 	StochasticGradient = 0,
-	RMSProp
+	Adagrad,
+	RMSProp,
+	Adam
 };
 
 class Neuron
@@ -18,6 +20,9 @@ public:
 		double weight;
 		double deltaWeight = 0.0;
 		double e = 0.0;
+		double m = 0.0;
+		double v = 0.0;
+		double t = 1;
 	};
 	Neuron(unsigned index, TrainingAlgorithm algorithm = StochasticGradient);
 	Neuron(unsigned index, unsigned numWeights, TrainingAlgorithm algorithm = StochasticGradient);
@@ -52,7 +57,8 @@ private:
 
 //double Neuron::rate = 0.15;
 //double Neuron::momentum = 0.5;
-double Neuron::rate = 0.7;
+//double Neuron::rate = 0.7;
+double Neuron::rate = 0.15;
 double Neuron::momentum = 0.3;
 
 double Neuron::transferFunction(double x)
@@ -147,12 +153,46 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 			
 			break;
 		}
-		case RMSProp:
+		case Adagrad:
 		{
 			double& e = neuron.m_outputWeights[m_index].e;
+			e = e + pow(gradient, 2);
+			double mod = 0.00000001;
+			newDeltaWeight = rate * gradient / sqrt(e + mod);
+
+			break;
+		}
+		case RMSProp:
+		{
+			//double mod = 0.001;
+			double mod = 0.000001;
+
+			double& e = neuron.m_outputWeights[m_index].e;
 			e = momentum * e + (1 - momentum) * pow(gradient, 2);
-			newDeltaWeight = rate * gradient / sqrt(e + 0.01);
+			newDeltaWeight = rate * gradient / sqrt(e + mod);
 			
+			break;
+		}
+		case Adam:
+		{
+			double beta1 = 0.9;
+			double beta2 = 0.999;
+			//double mod = 0.001;
+			double mod = 0.0000001;
+
+			double& m = neuron.m_outputWeights[m_index].m;
+			double& v = neuron.m_outputWeights[m_index].v;
+			double& t = neuron.m_outputWeights[m_index].t;
+
+			m = beta1 * m + (1 - beta1) * gradient;
+			v = beta2 * v + (1 - beta2) * pow(gradient, 2);
+
+			double mt = m / (1 - pow(beta1, t));
+			double mv = v / (1 - pow(beta2, t));
+			t++;
+
+			newDeltaWeight = rate * mt / sqrt(mv + mod);
+
 			break;
 		}
 		default:
@@ -309,7 +349,7 @@ void NeuronNetwork::backPropagation(const std::vector<double> &targetVals)
 		m_error += delta *delta;
 	}
 	m_error /= outputLayer.size() - 1; // get average error squared
-	std::cout << ++error_line << ": " << m_error * 100 << std::endl;
+	std::cout << ++error_line << ": " << m_error * 100 << std::fixed << std::endl;
 	//m_error = sqrt(m_error); // RMS
 
 	// Implement a recent average measurement:
@@ -503,11 +543,12 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
+	std::cout.precision(4);
 	NeuronNetwork n1(2, 1, 2, 3);
-	//n1.setTrainingAlgorithm(RMSProp);
-	/*
-	for(int i = 0; i < 10000; i++)
-		n1.train({ 
+	n1.setTrainingAlgorithm(Adam);
+	
+
+	n1.trainWhileError({
 			{1, 0},
 			{0, 1},
 			{0, 0},
@@ -517,14 +558,14 @@ int main()
 			{ 1 },
 			{ 0 },
 			{ 0 },
-		});
+		}, 0.6);
 	
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
-	*/
-
 	
+
+	/*
 	n1.trainWhileError({
 		normalizeInput({ 3, 3 }, 0, 10),
 		normalizeInput({ 2, 7 }, 0, 10),
@@ -533,6 +574,7 @@ int main()
 		normalizeInput({ 5, 5 }, 0, 10),
 		normalizeInput({ 2, 3 }, 0, 10),
 		normalizeInput({ 0, 0 }, 0, 10),
+		normalizeInput({ 1, 8 }, 0, 10),
 	}, {
 		normalizeInput(std::vector<double>{ 6 }, 0, 10),
 		normalizeInput(std::vector<double>{ 9 }, 0, 10),
@@ -541,7 +583,8 @@ int main()
 		normalizeInput(std::vector<double>{ 10 }, 0, 10),
 		normalizeInput(std::vector<double>{ 5 }, 0, 10),
 		normalizeInput(std::vector<double>{ 0 }, 0, 10),
-	}, 0.9);
+		normalizeInput(std::vector<double>{ 9 }, 0, 10),
+	}, 0.6);
 
 	n1.forward(normalizeInput({ 2, 2 }, 0, 10));
 	for (auto& o : n1.output())
@@ -549,16 +592,14 @@ int main()
 
 	n1.saveFile("example.txt");
 
-	//n1.train({ 1, 0 }, { 1 });
-	//n1.train({ 1, 0 }, { 1 });
-	//n1.train({ 1, 0 }, { 1 });
-	//n1.saveFile("example.txt");
 	NeuronNetwork n2;
 	n2.loadFile("example.txt");
 	
 	n2.forward(normalizeInput({ 0, 6 }, 0, 10));
 	for (auto& o : n2.output())
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
+
+	*/
 
     return 0;
 }
