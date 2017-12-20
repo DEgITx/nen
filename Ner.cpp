@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
+#include <chrono>
 
 enum TrainingAlgorithm {
 	StochasticGradient = 0,
@@ -47,19 +48,23 @@ private:
 	double sumDOW(const Layer &nextLayer) const;
 
 	unsigned m_index;
-	static double rate;
-	static double momentum;
 	double m_delta;
 	double m_output;
 	std::vector<Connection> m_outputWeights;
 	TrainingAlgorithm m_algorithm;
+	// learnings vars
+	static double rate;
+	static double momentum;
+	static double beta1;
+	static double beta2;
+	static double d_epsilon;
 };
 
-//double Neuron::rate = 0.15;
-//double Neuron::momentum = 0.5;
-//double Neuron::rate = 0.7;
-double Neuron::rate = 0.15;
+double Neuron::beta1 = 0.9;
+double Neuron::beta2 = 0.999;
+double Neuron::rate = 0.01;
 double Neuron::momentum = 0.3;
+double Neuron::d_epsilon = 0.0000001;
 
 double Neuron::transferFunction(double x)
 {
@@ -157,29 +162,20 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 		{
 			double& e = neuron.m_outputWeights[m_index].e;
 			e = e + pow(gradient, 2);
-			double mod = 0.00000001;
-			newDeltaWeight = rate * gradient / sqrt(e + mod);
+			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 
 			break;
 		}
 		case RMSProp:
 		{
-			//double mod = 0.001;
-			double mod = 0.000001;
-
 			double& e = neuron.m_outputWeights[m_index].e;
 			e = momentum * e + (1 - momentum) * pow(gradient, 2);
-			newDeltaWeight = rate * gradient / sqrt(e + mod);
+			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 			
 			break;
 		}
 		case Adam:
 		{
-			double beta1 = 0.9;
-			double beta2 = 0.999;
-			//double mod = 0.001;
-			double mod = 0.0000001;
-
 			double& m = neuron.m_outputWeights[m_index].m;
 			double& v = neuron.m_outputWeights[m_index].v;
 			double& t = neuron.m_outputWeights[m_index].t;
@@ -191,7 +187,7 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 			double mv = v / (1 - pow(beta2, t));
 			t++;
 
-			newDeltaWeight = rate * mt / sqrt(mv + mod);
+			newDeltaWeight = rate * mt / sqrt(mv + d_epsilon);
 
 			break;
 		}
@@ -215,7 +211,7 @@ public:
 	std::vector<double> output() const;
 	double train(const std::vector<double> &inputVals, const std::vector<double> &targetVals);
 	std::vector<double> train(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals);
-	void trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent);
+	void trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent, double errorPercentAvrg = 0);
 	void saveFile(const std::string& file);
 	void loadFile(const std::string& file);
 	void setWithBias(bool wb) { m_with_bias = wb; };
@@ -349,7 +345,9 @@ void NeuronNetwork::backPropagation(const std::vector<double> &targetVals)
 		m_error += delta *delta;
 	}
 	m_error /= outputLayer.size() - 1; // get average error squared
-	std::cout << ++error_line << ": " << m_error * 100 << std::fixed << std::endl;
+	
+	error_line++;
+	//std::cout << ++error_line << ": " << m_error * 100 << std::fixed << std::endl;
 	//m_error = sqrt(m_error); // RMS
 
 	// Implement a recent average measurement:
@@ -414,18 +412,45 @@ std::vector<double> NeuronNetwork::train(const std::vector<std::vector<double>> 
 	{
 		errors.push_back(train(inputVals[n], targetVals[n]));
 	}
+	// print
+	static auto start = std::chrono::high_resolution_clock::now();
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+	if (diff > 1000 * 1000 * 56)
+	{
+		start = finish;
+		system("cls");
+		double avrg = 0;
+		for (double error : errors)
+		{
+			std::cout << error * 100 << "%" << std::endl;
+			avrg += error;
+		}
+		std::cout << "avrg " << (avrg / errors.size()) * 100 << "%" << std::endl;
+	}
+	
 	return errors;
 }
 
-void NeuronNetwork::trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent)
+void NeuronNetwork::trainWhileError(const std::vector<std::vector<double>> &inputVals, const std::vector<std::vector<double>> &targetVals, double errorPercent, double errorPercentAvrg)
 {
 	std::vector<double> errors;
 	do {
 		errors = train(inputVals, targetVals);
 	} while (([&]() {
+		double errorAvrg = 0;
 		for (auto error : errors)
-			if (error * 100 >= errorPercent)
+		{
+			errorAvrg += error;
+			if (errorPercent > 0 && error * 100 >= errorPercent)
+			{
 				return true;
+			}
+		}
+		errorAvrg /= errors.size();
+		if (errorAvrg * 100 > errorPercentAvrg)
+			return true;
+
 		return false;
 	})());
 }
@@ -544,10 +569,10 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	std::cout.precision(4);
-	NeuronNetwork n1(2, 1, 2, 3);
-	n1.setTrainingAlgorithm(Adam);
+	NeuronNetwork n1(2, 1, 19, 19);
+	n1.setTrainingAlgorithm(Adagrad);
 	
-
+	/*
 	n1.trainWhileError({
 			{1, 0},
 			{0, 1},
@@ -563,9 +588,11 @@ int main()
 	n1.forward({ 1, 0 });
 	for (auto& o : n1.output())
 		std::cout << "out " << o << std::endl;
-	
 
+	*/
+	
 	/*
+
 	n1.trainWhileError({
 		normalizeInput({ 3, 3 }, 0, 10),
 		normalizeInput({ 2, 7 }, 0, 10),
@@ -600,6 +627,46 @@ int main()
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
 
 	*/
+
+	n1.trainWhileError({
+		normalizeInput({ log(1), log(3) }, 0, 10),
+		normalizeInput({ log(2), log(7) }, 0, 10),
+		normalizeInput({ log(6), log(5) }, 0, 10),
+		normalizeInput({ log(5), log(5) }, 0, 10),
+		normalizeInput({ log(2), log(3) }, 0, 10),
+		normalizeInput({ log(1), log(8) }, 0, 10),
+		normalizeInput({ log(7), log(7) }, 0, 10),
+		normalizeInput({ log(3), log(6) }, 0, 10),
+		normalizeInput({ log(6), log(6) }, 0, 10),
+		normalizeInput({ log(8), log(4) }, 0, 10),
+		normalizeInput({ log(10), log(5) }, 0, 10),
+		normalizeInput({ log(6), log(7) }, 0, 10),
+		normalizeInput({ log(8), log(8) }, 0, 10),
+		normalizeInput({ log(9), log(9) }, 0, 10),
+		normalizeInput({ log(5), log(8) }, 0, 10),
+		normalizeInput({ log(5), log(7) }, 0, 10),
+	}, {
+		normalizeInput(std::vector<double>{ log(3) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(14) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(30) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(25) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(6) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(8) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(49) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(18) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(36) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(32) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(50) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(42) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(64) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(81) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(40) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(35) }, 0, 10),
+	}, 0, 0.785);
+
+	n1.forward(normalizeInput({ log(8), log(8) }, 0, 10));
+	for (auto& o : n1.output())
+		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
 
     return 0;
 }
