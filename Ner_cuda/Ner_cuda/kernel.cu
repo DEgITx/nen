@@ -2,9 +2,10 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
-//#include "../../core/network.hpp"
 #include <iostream>
 #include <vector>
+#include <cassert>
+#include <chrono>
 
 /*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -132,8 +133,6 @@ __global__ void forwardKernel(double *outputs, double *weightes, const unsigned 
 		sum += outputs[prev_layer_offset_neuron + j] * weightes[prev_layer_weight_offset + j * neurons_size + i];
 	}
 	outputs[offset_neuron + i] = transferFunction(sum);
-
-	printf("out = %f\n", outputs[i + offset_neuron]);
 }
 
 __global__ void calculateOutputDelta(double *outputs, double *delta, double *targets, const unsigned outputs_offset)
@@ -163,7 +162,7 @@ __global__ void calculateHiddensDelta(double *outputs, double *weightes, double 
 	delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
 }
 
-__constant__ const double rate = 0.7;
+__constant__ const double rate = 0.01;
 __constant__ const double momentum = 0.3;
 __constant__ const double beta1 = 0.9;
 __constant__ const double beta2 = 0.999;
@@ -258,7 +257,7 @@ __global__ void updateInputWeights(
 	}
 }
 
-void forward(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons)
+void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons)
 {
 	// forward
 	for (unsigned layer = 1; layer <= layers + 1; ++layer)
@@ -279,7 +278,6 @@ double error(double* neuron_outputs, double* neuron_targets, unsigned outputs, u
 		error += delta * delta;
 	}
 	error /= outputs;
-	std::cout << error * 100 << '%' << std::endl;
 	return error;
 }
 
@@ -431,12 +429,28 @@ struct NeuronNetwork
 		cudaDeviceReset();
 	}
 
-	void train(double* i, double* o)
+	void forward(const std::vector<double> &i)
+	{
+		memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
+		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
+	}
+
+	std::vector<double> output() const
+	{
+		std::vector<double> out;
+		for (unsigned n = 0; n < outputs; ++n)
+		{
+			out.push_back(neuron_outputs[outputs_offset_neurons + n]);
+		}
+		return out;
+	}
+
+	double train(const double* i, const double* o)
 	{
 		memcpy(neuron_outputs, i, sizeof(double) * inputs);
 		memcpy(neuron_targets, o, sizeof(double) * outputs);
-		forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
-		error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
+		double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
 		backPropagation(
 			neuron_outputs,
 			neuron_weigths,
@@ -457,28 +471,141 @@ struct NeuronNetwork
 			algorithm_v,
 			algorithm_t
 		);
+		return err;
 	}
 
-	void train(std::vector<double> i, std::vector<double> o)
+	double train(const std::vector<double>& i, const std::vector<double>& o)
 	{
-		train(i.data(), o.data());
+		return train(i.data(), o.data());
 	}
+
+	std::vector<double> train(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o)
+	{
+		assert(i.size() == o.size());
+		std::vector<double> errors;
+		for (unsigned n = 0; n < i.size(); ++n)
+		{
+			errors.push_back(train(i[n], o[n]));
+		}
+		// print
+		static auto start = std::chrono::high_resolution_clock::now();
+		auto finish = std::chrono::high_resolution_clock::now();
+		auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+		if (diff > 1000 * 1000 * 56)
+		{
+			start = finish;
+			system("cls");
+			double avrg = 0;
+			for (double error : errors)
+			{
+				std::cout << error * 100 << "%" << std::endl;
+				avrg += error;
+			}
+			std::cout << "avrg " << (avrg / errors.size()) * 100 << "%" << std::endl;
+		}
+
+		return errors;
+	}
+
+	void trainWhileError(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double errorPercent, double errorPercentAvrg)
+	{
+		std::vector<double> errors;
+		do {
+			errors = train(i, o);
+		} while (([&]() {
+			double errorAvrg = 0;
+			for (auto error : errors)
+			{
+				errorAvrg += error;
+				if (errorPercent > 0 && error * 100 >= errorPercent)
+				{
+					return true;
+				}
+			}
+			errorAvrg /= errors.size();
+			if (errorAvrg * 100 > errorPercentAvrg)
+				return true;
+
+			return false;
+		})());
+	}
+
 };
+
+
+double normalizeInput(double x, double max, double min)
+{
+	return (x - min) / (max - min);
+}
+
+std::vector<double> normalizeInput(const std::vector<double> &xArray, double max, double min)
+{
+	std::vector<double> xSes;
+	for (double x : xArray)
+		xSes.push_back(normalizeInput(x, max, min));
+	return xSes;
+}
+
+double deNormalizeOutput(double y, double max, double min)
+{
+	return min + y * (max - min);
+}
+
+std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double max, double min)
+{
+	std::vector<double> ySes;
+	for (double y : yArray)
+		ySes.push_back(deNormalizeOutput(y, max, min));
+	return ySes;
+}
 
 int main()
 {
-	NeuronNetwork n(2, 1, 1, 2, StochasticGradient);
+	NeuronNetwork n(2, 1, 10, 28, RMSProp);
 
-	n.neuron_weigths[0] = 0.45;
-	n.neuron_weigths[1] = 0.78;
-	n.neuron_weigths[2] = -0.12;
-	n.neuron_weigths[3] = 0.13;
-	n.neuron_weigths[6] = 1.5;
-	n.neuron_weigths[7] = -2.3;
+	auto start = std::chrono::high_resolution_clock::now();
+	n.trainWhileError({
+		normalizeInput({ log(1), log(3) }, 0, 10),
+		normalizeInput({ log(2), log(7) }, 0, 10),
+		normalizeInput({ log(6), log(5) }, 0, 10),
+		normalizeInput({ log(5), log(5) }, 0, 10),
+		normalizeInput({ log(2), log(3) }, 0, 10),
+		normalizeInput({ log(1), log(8) }, 0, 10),
+		normalizeInput({ log(7), log(7) }, 0, 10),
+		normalizeInput({ log(3), log(6) }, 0, 10),
+		normalizeInput({ log(6), log(6) }, 0, 10),
+		normalizeInput({ log(8), log(4) }, 0, 10),
+		normalizeInput({ log(10), log(5) }, 0, 10),
+		normalizeInput({ log(6), log(7) }, 0, 10),
+		normalizeInput({ log(8), log(8) }, 0, 10),
+		normalizeInput({ log(9), log(9) }, 0, 10),
+		normalizeInput({ log(5), log(8) }, 0, 10),
+		normalizeInput({ log(5), log(7) }, 0, 10),
+	}, {
+		normalizeInput(std::vector<double>{ log(3) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(14) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(30) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(25) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(6) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(8) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(49) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(18) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(36) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(32) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(50) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(42) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(64) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(81) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(40) }, 0, 10),
+		normalizeInput(std::vector<double>{ log(35) }, 0, 10),
+	}, 0, 1);
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
 
-	n.train(std::vector<double>{ 1, 0 }, std::vector<double>{ 1 });
-	n.train(std::vector<double>{ 1, 0 }, std::vector<double>{ 1 });
-	
+	n.forward(normalizeInput({ log(8), log(8) }, 0, 10));
+	for (auto& o : n.output())
+		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
 
     return 0;
 }
