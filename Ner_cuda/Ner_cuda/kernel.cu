@@ -4,6 +4,7 @@
 #include <stdio.h>
 //#include "../../core/network.hpp"
 #include <iostream>
+#include <vector>
 
 /*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -343,33 +344,13 @@ void backPropagation(
 
 double randomWeight(void) { return rand() / double(RAND_MAX); }
 
-int main()
+struct NeuronNetwork
 {
-	cudaError_t cudaStatus;
-	/*
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
-
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
-    }
-
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
-
-	*/
-
-
-	int inputs = 2;
-	int outputs = 1;
-	int layers = 2;
-	int neurons = 3;
-	TrainingAlgorithm algorithm = Adam;
+	int inputs;
+	int outputs;
+	int layers;
+	int neurons;
+	TrainingAlgorithm algorithm = StochasticGradient;
 
 	double* neuron_outputs;
 	double* neuron_delta;
@@ -382,87 +363,93 @@ int main()
 	double* algorithm_v;
 	double* algorithm_t;
 
-	unsigned neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
-	unsigned hidden_offset_neurons = inputs + 1;
-	unsigned outputs_offset_neurons = hidden_offset_neurons + (neurons + 1) * layers;
-	unsigned neuron_weigths_size = ((neurons + 1) * neurons) * (layers - 1) + ((inputs + 1) * neurons) + (outputs * (neurons + 1));
+	unsigned neurons_size;
+	unsigned hidden_offset_neurons;
+	unsigned outputs_offset_neurons;
+	unsigned neuron_weigths_size;
 
-	cudaMallocManaged(&neuron_outputs, neurons_size * sizeof(double));
-	cudaMallocManaged(&neuron_delta, neurons_size * sizeof(double));
-	cudaMallocManaged(&neuron_weigths, neuron_weigths_size * sizeof(double));
-	cudaMallocManaged(&neuron_delta_weight, neuron_weigths_size * sizeof(double));
-	cudaMallocManaged(&neuron_targets, outputs * sizeof(double));
-	cudaMallocManaged(&algorithm_e, neuron_weigths_size * sizeof(double));
-	cudaMallocManaged(&algorithm_m, neuron_weigths_size * sizeof(double));
-	cudaMallocManaged(&algorithm_v, neuron_weigths_size * sizeof(double));
-	cudaMallocManaged(&algorithm_t, neuron_weigths_size * sizeof(double));
-
-	// bias neurons
-	for (unsigned layer = 0, i = 0; layer < layers + 1; ++layer)
+	NeuronNetwork(int inputs_, int outputs_, int layers_, int neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
 	{
-		unsigned layer_size = layer == 0 ? inputs + 1 : neurons + 1;
-		i += layer_size;
-		neuron_outputs[i - 1] = 1;
+		algorithm = algorithm_;
+
+		inputs = inputs_;
+		outputs = outputs_;
+		layers = layers_;
+		neurons = neurons_;
+
+		neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
+		hidden_offset_neurons = inputs + 1;
+		outputs_offset_neurons = hidden_offset_neurons + (neurons + 1) * layers;
+		neuron_weigths_size = ((neurons + 1) * neurons) * (layers - 1) + ((inputs + 1) * neurons) + (outputs * (neurons + 1));
+
+		cudaMallocManaged(&neuron_outputs, neurons_size * sizeof(double));
+		cudaMallocManaged(&neuron_delta, neurons_size * sizeof(double));
+		cudaMallocManaged(&neuron_weigths, neuron_weigths_size * sizeof(double));
+		cudaMallocManaged(&neuron_delta_weight, neuron_weigths_size * sizeof(double));
+		cudaMallocManaged(&neuron_targets, outputs * sizeof(double));
+		cudaMallocManaged(&algorithm_e, neuron_weigths_size * sizeof(double));
+		cudaMallocManaged(&algorithm_m, neuron_weigths_size * sizeof(double));
+		cudaMallocManaged(&algorithm_v, neuron_weigths_size * sizeof(double));
+		cudaMallocManaged(&algorithm_t, neuron_weigths_size * sizeof(double));
+
+		// bias neurons
+		for (unsigned layer = 0, i = 0; layer < layers + 1; ++layer)
+		{
+			unsigned layer_size = layer == 0 ? inputs + 1 : neurons + 1;
+			i += layer_size;
+			neuron_outputs[i - 1] = 1;
+		}
+
+		// first t = 1
+		for (unsigned i = 0; i < neuron_weigths_size; ++i)
+		{
+			algorithm_t[i] = 1;
+		}
+
+		// random weightes
+		for (unsigned i = 0; i < neuron_weigths_size; ++i)
+		{
+			neuron_weigths[i] = randomWeight();
+		}
 	}
 
-	// first t = 1
-	for (unsigned i = 0; i < neuron_weigths_size; ++i)
+	~NeuronNetwork() 
 	{
-		algorithm_t[i] = 1;
+		cudaFree(neuron_outputs);
+		cudaFree(neuron_delta);
+		cudaFree(neuron_weigths);
+		cudaFree(neuron_delta_weight);
+		cudaFree(neuron_targets);
+
+		cudaFree(algorithm_e);
+		cudaFree(algorithm_m);
+		cudaFree(algorithm_v);
+		cudaFree(algorithm_t);
+
+		// cudaDeviceReset must be called before exiting in order for profiling and
+		// tracing tools such as Nsight and Visual Profiler to show complete traces.
+		cudaDeviceReset();
 	}
 
-	// random weightes
-	for (unsigned i = 0; i < neuron_weigths_size; ++i)
+	void train(double* i, double* o)
 	{
-		neuron_weigths[i] = randomWeight();
-	}
-
-	neuron_outputs[0] = 1;
-	neuron_outputs[1] = 0;
-
-	neuron_weigths[0] = 0.45;
-	neuron_weigths[1] = 0.78;
-	neuron_weigths[2] = -0.12;
-	neuron_weigths[3] = 0.13;
-	neuron_weigths[4] = 1.5;
-	neuron_weigths[5] = -2.3;
-
-	neuron_weigths[9] = 0.1;
-	neuron_weigths[10] = 0.33;
-	neuron_weigths[11] = 0.46;
-	neuron_weigths[12] = 0.1;
-	neuron_weigths[13] = 0.84;
-	neuron_weigths[14] = 0.1;
-	neuron_weigths[15] = 0.2;
-	neuron_weigths[16] = 0.3;
-	neuron_weigths[17] = 0.4;
-
-	neuron_weigths[21] = 0.5;
-	neuron_weigths[22] = 0.6;
-	neuron_weigths[23] = 0.7;
-	
-	neuron_targets[0] = 1;
-
-	for (int i = 0; i < neuron_weigths_size; i++)
-		std::cout << "ss " << neuron_weigths[i] << std::endl;
-
-	for (int i = 0; i < 3; i++)
-	{
+		memcpy(neuron_outputs, i, sizeof(double) * inputs);
+		memcpy(neuron_targets, o, sizeof(double) * outputs);
 		forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
 		error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
 		backPropagation(
-			neuron_outputs, 
-			neuron_weigths, 
-			neuron_delta, 
-			neuron_delta_weight, 
-			neuron_targets, 
-			
-			inputs, 
-			outputs, 
-			layers, 
-			neurons, 
-			outputs_offset_neurons, 
-			
+			neuron_outputs,
+			neuron_weigths,
+			neuron_delta,
+			neuron_delta_weight,
+			neuron_targets,
+
+			inputs,
+			outputs,
+			layers,
+			neurons,
+			outputs_offset_neurons,
+
 			algorithm,
 
 			algorithm_e,
@@ -472,24 +459,26 @@ int main()
 		);
 	}
 
-	cudaFree(neuron_outputs);
-	cudaFree(neuron_delta);
-	cudaFree(neuron_weigths);
-	cudaFree(neuron_delta_weight);
-	cudaFree(neuron_targets);
+	void train(std::vector<double> i, std::vector<double> o)
+	{
+		train(i.data(), o.data());
+	}
+};
 
-	cudaFree(algorithm_e);
-	cudaFree(algorithm_m);
-	cudaFree(algorithm_v);
-	cudaFree(algorithm_t);
+int main()
+{
+	NeuronNetwork n(2, 1, 1, 2, StochasticGradient);
 
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
-    }
+	n.neuron_weigths[0] = 0.45;
+	n.neuron_weigths[1] = 0.78;
+	n.neuron_weigths[2] = -0.12;
+	n.neuron_weigths[3] = 0.13;
+	n.neuron_weigths[6] = 1.5;
+	n.neuron_weigths[7] = -2.3;
+
+	n.train(std::vector<double>{ 1, 0 }, std::vector<double>{ 1 });
+	n.train(std::vector<double>{ 1, 0 }, std::vector<double>{ 1 });
+	
 
     return 0;
 }
