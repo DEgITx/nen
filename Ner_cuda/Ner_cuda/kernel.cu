@@ -95,6 +95,13 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 }
 */
 
+enum TrainingAlgorithm {
+	StochasticGradient = 0,
+	Adagrad,
+	RMSProp,
+	Adam
+};
+
 __device__ double transferFunction(double x)
 {
 	return 1.0 / (1.0 + std::exp(-x));
@@ -157,8 +164,29 @@ __global__ void calculateHiddensDelta(double *outputs, double *weightes, double 
 
 __constant__ const double rate = 0.7;
 __constant__ const double momentum = 0.3;
+__constant__ const double beta1 = 0.9;
+__constant__ const double beta2 = 0.999;
+__constant__ const double d_epsilon = 0.0000001;
 
-__global__ void updateInputWeights(double *outputs, double *weightes, double *delta, double *delta_weight, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+__global__ void updateInputWeights(
+	double *outputs,
+	double *weightes, 
+	double *delta, 
+	double *delta_weight, 
+	
+	const unsigned layer, 
+	const unsigned inputs, 
+	const unsigned outputs_size, 
+	const unsigned layers, 
+	const unsigned neurons, 
+	
+	TrainingAlgorithm algorithm,
+
+	double *algorithm_e,
+	double *algorithm_m,
+	double *algorithm_v,
+	double *algorithm_t
+)
 {
 	int i = threadIdx.x;
 
@@ -177,7 +205,52 @@ __global__ void updateInputWeights(double *outputs, double *weightes, double *de
 		double gradient = outputs[prev_layer_offset_neuron + j] * delta[offset_neuron + i];
 		double newDeltaWeight;
 
-		newDeltaWeight = rate * gradient + momentum * oldDeltaWeight;
+		switch (algorithm)
+		{
+		case StochasticGradient:
+		{
+			newDeltaWeight = rate * gradient + momentum * oldDeltaWeight;
+
+			break;
+		}
+		case Adagrad:
+		{
+			double& e = algorithm_e[prev_layer_weight_index];
+
+			e = e + pow(gradient, 2);
+			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
+
+			break;
+		}
+		case RMSProp:
+		{
+			double& e = algorithm_e[prev_layer_weight_index];
+
+			e = momentum * e + (1 - momentum) * pow(gradient, 2);
+			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
+
+			break;
+		}
+		case Adam:
+		{
+			double& m = algorithm_m[prev_layer_weight_index];
+			double& v = algorithm_v[prev_layer_weight_index];
+			double& t = algorithm_t[prev_layer_weight_index];
+
+			m = beta1 * m + (1 - beta1) * gradient;
+			v = beta2 * v + (1 - beta2) * pow(gradient, 2);
+
+			double mt = m / (1 - pow(beta1, t));
+			double mv = v / (1 - pow(beta2, t));
+			t++;
+
+			newDeltaWeight = rate * mt / sqrt(mv + d_epsilon);
+
+			break;
+		}
+		default:
+			break;
+		}
 
 		delta_weight[prev_layer_weight_index] = newDeltaWeight;
 		weightes[prev_layer_weight_index] += newDeltaWeight;
@@ -209,7 +282,26 @@ double error(double* neuron_outputs, double* neuron_targets, unsigned outputs, u
 	return error;
 }
 
-void backPropagation(double* neuron_outputs, double* neuron_weigths, double* neuron_delta, double* neuron_delta_weight, double* neuron_targets, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, unsigned outputs_offset_neurons)
+void backPropagation(
+	double* neuron_outputs, 
+	double* neuron_weigths, 
+	double* neuron_delta, 
+	double* neuron_delta_weight, 
+	double* neuron_targets, 
+	
+	unsigned inputs, 
+	unsigned outputs, 
+	unsigned layers,
+	unsigned neurons, 
+	unsigned outputs_offset_neurons,
+
+	TrainingAlgorithm algorithm,
+
+	double *algorithm_e,
+	double *algorithm_m,
+	double *algorithm_v,
+	double *algorithm_t
+)
 {
 	// calculate output delta
 	calculateOutputDelta << <1, outputs >> >(neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
@@ -226,7 +318,25 @@ void backPropagation(double* neuron_outputs, double* neuron_weigths, double* neu
 	for (unsigned layer = layers + 1; layer > 0; --layer)
 	{
 		unsigned threads = (layer == layers + 1) ? outputs : neurons;
-		updateInputWeights << <1, threads >> >(neuron_outputs, neuron_weigths, neuron_delta, neuron_delta_weight, layer, inputs, outputs, layers, neurons);
+		updateInputWeights << <1, threads >> >(
+			neuron_outputs, 
+			neuron_weigths, 
+			neuron_delta, 
+			neuron_delta_weight, 
+			
+			layer, 
+			inputs, 
+			outputs, 
+			layers, 
+			neurons,
+			
+			algorithm,
+
+			algorithm_e,
+			algorithm_m,
+			algorithm_v,
+			algorithm_t
+		);
 		cudaDeviceSynchronize();
 	}
 }
@@ -257,12 +367,18 @@ int main()
 	int outputs = 1;
 	int layers = 2;
 	int neurons = 3;
+	TrainingAlgorithm algorithm = Adam;
 
 	double* neuron_outputs;
 	double* neuron_delta;
 	double* neuron_weigths;
 	double* neuron_delta_weight;
 	double* neuron_targets;
+
+	double* algorithm_e;
+	double* algorithm_m;
+	double* algorithm_v;
+	double* algorithm_t;
 
 	unsigned neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 	unsigned hidden_offset_neurons = inputs + 1;
@@ -274,6 +390,10 @@ int main()
 	cudaMallocManaged(&neuron_weigths, neuron_weigths_size * sizeof(double));
 	cudaMallocManaged(&neuron_delta_weight, neuron_weigths_size * sizeof(double));
 	cudaMallocManaged(&neuron_targets, outputs * sizeof(double));
+	cudaMallocManaged(&algorithm_e, neuron_weigths_size * sizeof(double));
+	cudaMallocManaged(&algorithm_m, neuron_weigths_size * sizeof(double));
+	cudaMallocManaged(&algorithm_v, neuron_weigths_size * sizeof(double));
+	cudaMallocManaged(&algorithm_t, neuron_weigths_size * sizeof(double));
 
 	// bias neurons
 	for (unsigned layer = 0, i = 0; layer < layers + 1; ++layer)
@@ -281,6 +401,12 @@ int main()
 		unsigned layer_size = layer == 0 ? inputs + 1 : neurons + 1;
 		i += layer_size;
 		neuron_outputs[i - 1] = 1;
+	}
+
+	// first t = 1
+	for (unsigned i = 0; i < neuron_weigths_size; ++i)
+	{
+		algorithm_t[i] = 1;
 	}
 
 	neuron_outputs[0] = 1;
@@ -312,16 +438,42 @@ int main()
 	for (int i = 0; i < neuron_weigths_size; i++)
 		std::cout << "ss " << neuron_weigths[i] << std::endl;
 
-	forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
-	double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
-	backPropagation(neuron_outputs, neuron_weigths, neuron_delta, neuron_delta_weight, neuron_targets, inputs, outputs, layers, neurons, outputs_offset_neurons);
+	for (int i = 0; i < 3; i++)
+	{
+		forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
+		error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+		backPropagation(
+			neuron_outputs, 
+			neuron_weigths, 
+			neuron_delta, 
+			neuron_delta_weight, 
+			neuron_targets, 
+			
+			inputs, 
+			outputs, 
+			layers, 
+			neurons, 
+			outputs_offset_neurons, 
+			
+			algorithm,
 
-	forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
-	error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
-	backPropagation(neuron_outputs, neuron_weigths, neuron_delta, neuron_delta_weight, neuron_targets, inputs, outputs, layers, neurons, outputs_offset_neurons);
+			algorithm_e,
+			algorithm_m,
+			algorithm_v,
+			algorithm_t
+		);
+	}
 
-	forward(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
-	error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+	cudaFree(neuron_outputs);
+	cudaFree(neuron_delta);
+	cudaFree(neuron_weigths);
+	cudaFree(neuron_delta_weight);
+	cudaFree(neuron_targets);
+
+	cudaFree(algorithm_e);
+	cudaFree(algorithm_m);
+	cudaFree(algorithm_v);
+	cudaFree(algorithm_t);
 
     // cudaDeviceReset must be called before exiting in order for profiling and
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
