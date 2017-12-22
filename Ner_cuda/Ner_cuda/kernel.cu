@@ -341,6 +341,8 @@ void backPropagation(
 	}
 }
 
+double randomWeight(void) { return rand() / double(RAND_MAX); }
+
 int main()
 {
 	cudaError_t cudaStatus;
@@ -407,6 +409,12 @@ int main()
 	for (unsigned i = 0; i < neuron_weigths_size; ++i)
 	{
 		algorithm_t[i] = 1;
+	}
+
+	// random weightes
+	for (unsigned i = 0; i < neuron_weigths_size; ++i)
+	{
+		neuron_weigths[i] = randomWeight();
 	}
 
 	neuron_outputs[0] = 1;
