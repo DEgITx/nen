@@ -161,7 +161,7 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 		case Adagrad:
 		{
 			double& e = neuron.m_outputWeights[m_index].e;
-			e = e + pow(gradient, 2);
+			e = e + gradient * gradient;
 			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 
 			break;
@@ -169,7 +169,7 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 		case RMSProp:
 		{
 			double& e = neuron.m_outputWeights[m_index].e;
-			e = momentum * e + (1 - momentum) * pow(gradient, 2);
+			e = momentum * e + (1 - momentum) * gradient * gradient;
 			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 			
 			break;
@@ -181,7 +181,7 @@ void Neuron::updateInputWeights(Layer &prevLayer)
 			double& t = neuron.m_outputWeights[m_index].t;
 
 			m = beta1 * m + (1 - beta1) * gradient;
-			v = beta2 * v + (1 - beta2) * pow(gradient, 2);
+			v = beta2 * v + (1 - beta2) * gradient * gradient;
 
 			double mt = m / (1 - pow(beta1, t));
 			double mv = v / (1 - pow(beta2, t));
@@ -570,7 +570,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	std::cout.precision(4);
-	NeuronNetwork n1(2, 1, 19, 19);
+	NeuronNetwork n1(2, 1, 22, 22);
 	n1.setTrainingAlgorithm(Adagrad);
 	
 	/*
@@ -628,7 +628,7 @@ int main()
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
 
 	*/
-	/*
+
 	auto start = std::chrono::high_resolution_clock::now();
 	n1.trainWhileError({
 		normalizeInput({ log(1), log(3) }, 0, 10),
@@ -671,13 +671,6 @@ int main()
 
 	n1.forward(normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n1.output())
-		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
-	*/
-
-	NeuronNetwork n2;
-	n2.loadFile("mul.ner");
-	n2.forward(normalizeInput({ log(8), log(8) }, 0, 10));
-	for (auto& o : n2.output())
 		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
 
     return 0;

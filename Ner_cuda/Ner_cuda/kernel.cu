@@ -218,7 +218,7 @@ __global__ void updateInputWeights(
 		{
 			double& e = algorithm_e[prev_layer_weight_index];
 
-			e = e + pow(gradient, 2);
+			e = e + gradient * gradient;
 			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 
 			break;
@@ -227,7 +227,7 @@ __global__ void updateInputWeights(
 		{
 			double& e = algorithm_e[prev_layer_weight_index];
 
-			e = momentum * e + (1 - momentum) * pow(gradient, 2);
+			e = momentum * e + (1 - momentum) * gradient * gradient;
 			newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
 
 			break;
@@ -239,7 +239,7 @@ __global__ void updateInputWeights(
 			double& t = algorithm_t[prev_layer_weight_index];
 
 			m = beta1 * m + (1 - beta1) * gradient;
-			v = beta2 * v + (1 - beta2) * pow(gradient, 2);
+			v = beta2 * v + (1 - beta2) * gradient * gradient;
 
 			double mt = m / (1 - pow(beta1, t));
 			double mv = v / (1 - pow(beta2, t));
