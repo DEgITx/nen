@@ -163,12 +163,6 @@ __global__ void calculateHiddensDelta(double *outputs, double *weightes, double 
 	delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
 }
 
-__constant__ const double rate = 0.02;
-__constant__ const double momentum = 0.3;
-__constant__ const double beta1 = 0.9;
-__constant__ const double beta2 = 0.999;
-__constant__ const double d_epsilon = 0.000000001;
-
 __global__ void updateInputWeights(
 	double *outputs,
 	double *weightes, 
@@ -186,7 +180,13 @@ __global__ void updateInputWeights(
 	double *algorithm_e,
 	double *algorithm_m,
 	double *algorithm_v,
-	double *algorithm_t
+	double *algorithm_t,
+
+	double rate = 0.02,
+	double momentum = 0.3,
+	double beta1 = 0.9,
+	double beta2 = 0.999,
+	double d_epsilon = 0.000000001
 )
 {
 	int i = threadIdx.x;
@@ -300,7 +300,13 @@ void backPropagation(
 	double *algorithm_e,
 	double *algorithm_m,
 	double *algorithm_v,
-	double *algorithm_t
+	double *algorithm_t,
+
+	double rate,
+	double momentum,
+	double beta1,
+	double beta2,
+	double d_epsilon
 )
 {
 	// calculate output delta
@@ -335,7 +341,13 @@ void backPropagation(
 			algorithm_e,
 			algorithm_m,
 			algorithm_v,
-			algorithm_t
+			algorithm_t,
+
+			rate,
+			momentum,
+			beta1,
+			beta2,
+			d_epsilon
 		);
 		cudaDeviceSynchronize();
 	}
@@ -366,6 +378,12 @@ struct NeuronNetwork
 	unsigned hidden_offset_neurons;
 	unsigned outputs_offset_neurons;
 	unsigned neuron_weigths_size;
+
+	double rate = 0.02;
+	double momentum = 0.3;
+	double beta1 = 0.9;
+	double beta2 = 0.999;
+	double d_epsilon = 0.000000001;
 
 	NeuronNetwork(int inputs_, int outputs_, int layers_, int neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
 	{
@@ -479,7 +497,13 @@ struct NeuronNetwork
 			algorithm_e,
 			algorithm_m,
 			algorithm_v,
-			algorithm_t
+			algorithm_t,
+
+			rate,
+			momentum,
+			beta1,
+			beta2,
+			d_epsilon
 		);
 		return err;
 	}
@@ -599,7 +623,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 20, 20, Adagrad);
+	NeuronNetwork n(2, 1, 25, 25, Adagrad);
 
 	auto start = std::chrono::high_resolution_clock::now();
 	n.trainWhileError({
