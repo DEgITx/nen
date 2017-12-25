@@ -459,10 +459,10 @@ void NeuronNetwork::saveFile(const std::string& file)
 {
 	std::ofstream f;
 	f.open(file);
-	f << m_layers[0].size() << "\n";
-	f << m_layers.back().size() << "\n";
-	f << m_layers.size() << "\n";
-	f << m_layers[1].size() << "\n";
+	f << m_layers[0].size() - 1 << "\n";
+	f << m_layers.back().size() - 1 << "\n";
+	f << m_layers.size() - 2 << "\n";
+	f << m_layers[1].size() - 1 << "\n";
 	for (const Neuron::Layer& layer : m_layers)
 	{
 		for (const Neuron& neuron : layer)
@@ -470,7 +470,6 @@ void NeuronNetwork::saveFile(const std::string& file)
 			for (const Neuron::Connection& connection : neuron.connections())
 			{
 				f << connection.weight << "\n";
-				f << connection.deltaWeight << "\n";
 			}
 		}
 	}
@@ -484,6 +483,10 @@ void NeuronNetwork::loadFile(const std::string& file)
 	m_layers.clear();
 	unsigned inputs, outputs, layers, neurons;
 	f >> inputs >> outputs >> layers >> neurons;
+	inputs++;
+	outputs++;
+	neurons++;
+	layers += 2;
 	m_layers.push_back(Neuron::Layer());
 	double weight, delta;
 	for (unsigned i = 0; i < inputs; ++i)
@@ -493,7 +496,6 @@ void NeuronNetwork::loadFile(const std::string& file)
 		{
 			Neuron::Connection connection;
 			f >> connection.weight;
-			f >> connection.deltaWeight;
 			connections.push_back(connection);
 		}
 		Neuron neur = Neuron(i, connections);
@@ -511,7 +513,6 @@ void NeuronNetwork::loadFile(const std::string& file)
 			{
 				Neuron::Connection connection;
 				f >> connection.weight;
-				f >> connection.deltaWeight;
 				connections.push_back(connection);
 			}
 			Neuron neur = Neuron(i, connections);
@@ -627,7 +628,8 @@ int main()
 		std::cout << "out " << deNormalizeOutput(o, 0, 10) << std::endl;
 
 	*/
-
+	/*
+	auto start = std::chrono::high_resolution_clock::now();
 	n1.trainWhileError({
 		normalizeInput({ log(1), log(3) }, 0, 10),
 		normalizeInput({ log(2), log(7) }, 0, 10),
@@ -662,10 +664,20 @@ int main()
 		normalizeInput(std::vector<double>{ log(81) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(40) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(35) }, 0, 10),
-	}, 0, 0.785);
+	}, 0, 1);
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
 
 	n1.forward(normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n1.output())
+		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
+	*/
+
+	NeuronNetwork n2;
+	n2.loadFile("mul.ner");
+	n2.forward(normalizeInput({ log(8), log(8) }, 0, 10));
+	for (auto& o : n2.output())
 		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
 
     return 0;

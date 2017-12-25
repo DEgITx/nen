@@ -6,6 +6,7 @@
 #include <vector>
 #include <cassert>
 #include <chrono>
+#include <fstream>
 
 /*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -162,11 +163,11 @@ __global__ void calculateHiddensDelta(double *outputs, double *weightes, double 
 	delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
 }
 
-__constant__ const double rate = 0.01;
+__constant__ const double rate = 0.02;
 __constant__ const double momentum = 0.3;
 __constant__ const double beta1 = 0.9;
 __constant__ const double beta2 = 0.999;
-__constant__ const double d_epsilon = 0.0000001;
+__constant__ const double d_epsilon = 0.000000001;
 
 __global__ void updateInputWeights(
 	double *outputs,
@@ -375,6 +376,11 @@ struct NeuronNetwork
 		layers = layers_;
 		neurons = neurons_;
 
+		init();
+	}
+
+	void init() 
+	{
 		neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 		hidden_offset_neurons = inputs + 1;
 		outputs_offset_neurons = hidden_offset_neurons + (neurons + 1) * layers;
@@ -411,7 +417,7 @@ struct NeuronNetwork
 		}
 	}
 
-	~NeuronNetwork() 
+	void free()
 	{
 		cudaFree(neuron_outputs);
 		cudaFree(neuron_delta);
@@ -423,7 +429,11 @@ struct NeuronNetwork
 		cudaFree(algorithm_m);
 		cudaFree(algorithm_v);
 		cudaFree(algorithm_t);
+	}
 
+	~NeuronNetwork() 
+	{
+		free();
 		// cudaDeviceReset must be called before exiting in order for profiling and
 		// tracing tools such as Nsight and Visual Profiler to show complete traces.
 		cudaDeviceReset();
@@ -530,6 +540,34 @@ struct NeuronNetwork
 		})());
 	}
 
+	void saveFile(const std::string& file)
+	{
+		std::ofstream f;
+		f.open(file);
+		f << inputs << "\n";
+		f << outputs << "\n";
+		f << layers << "\n";
+		f << neurons << "\n";
+		for(int i = 0; i < neuron_weigths_size; ++i)
+			f << neuron_weigths[i] << "\n";
+		f.close();
+	}
+
+	void loadFile(const std::string& file)
+	{
+		std::ifstream f;
+		f.open(file);
+		f >> inputs >> outputs >> layers >> neurons;
+		free();
+		init();
+		double weight;
+		for (int i = 0; i < neuron_weigths_size; ++i)
+		{
+			f >> weight;
+			neuron_weigths[i] = weight;
+		}
+		f.close();
+	}
 };
 
 
@@ -561,7 +599,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 10, 28, RMSProp);
+	NeuronNetwork n(2, 1, 20, 20, Adagrad);
 
 	auto start = std::chrono::high_resolution_clock::now();
 	n.trainWhileError({
@@ -606,6 +644,7 @@ int main()
 	n.forward(normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n.output())
 		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
+	n.saveFile("mul.ner");
 
     return 0;
 }
