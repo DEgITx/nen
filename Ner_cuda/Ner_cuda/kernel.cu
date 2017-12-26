@@ -561,9 +561,10 @@ struct NeuronNetwork
 			start2 = finish;
 
 			if (!auto_save_file.empty())
+			{
 				saveFile(auto_save_file);
-
-			std::cout << "sv" << std::endl;
+				std::cout << "sv" << std::endl;
+			}
 		}
 
 
@@ -702,9 +703,40 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 4, 4, Adam);
+	NeuronNetwork n(2, 1, 25, 25, Adagrad);
 
 	/*
+	std::ofstream f;
+	f.open("mul.data");
+	for (double i = 2; i <= 10; i++)
+		for (double j = 2; j <= 10; j++)
+		{
+			double x = log(i) / log(100);
+			double y = log(j) / log(100);
+			double xy = log(i * j) / log(100);
+			f << x << " " << y << " " << xy << "\n";
+			std::cout << exp(xy * log(100)) << "\n";
+		}
+	f.close();
+	*/
+
+	/*
+	std::ofstream f;
+	f.open("add.data");
+	for (double i = 0; i <= 25; i++)
+	{
+		for (double j = 0; j <= 25; j++)
+		{
+			double x = i / 50;
+			double y = j / 50;
+			double xy = (i + j) / 50;
+			f << x << " " << y << " " << xy << "\n";
+			std::cout << xy * 50 << "\n";
+		}
+	}
+	f.close();
+	*/
+
 	auto start = std::chrono::high_resolution_clock::now();
 	n.trainWhileError({
 		normalizeInput({ log(1), log(3) }, 0, 10),
@@ -748,16 +780,13 @@ int main()
 	n.forward(normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n.output())
 		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
-	n.saveFile("mul.ner");
+	//n.saveFile("mul.ner");
 
-	*/
-
-	//n.setAutoSaveFile("xor.ner");
-	n.loadTrainData("xor.data");
-	n.trainWhileError(0, 0.1);
-	auto result = n.get({ 1, 1 });
-	std::cout << "out " << result[0] << std::endl;
-
+	//n.setAutoSaveFile("add.ner");
+	//n.loadTrainData("add.data");
+	//n.trainWhileError(0, 0.5);
+	//auto result = n.get({ log(2) / log(100), log(2) / log(100) });
+	//std::cout << "out " << exp(result[0] * log(100)) << std::endl;
 
     return 0;
 }
