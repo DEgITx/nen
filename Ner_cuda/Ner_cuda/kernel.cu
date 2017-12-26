@@ -7,6 +7,7 @@
 #include <cassert>
 #include <chrono>
 #include <fstream>
+#include <sstream>
 
 /*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -357,10 +358,10 @@ double randomWeight(void) { return rand() / double(RAND_MAX); }
 
 struct NeuronNetwork
 {
-	int inputs;
-	int outputs;
-	int layers;
-	int neurons;
+	unsigned inputs;
+	unsigned outputs;
+	unsigned layers;
+	unsigned neurons;
 	TrainingAlgorithm algorithm = StochasticGradient;
 
 	double* neuron_outputs;
@@ -385,7 +386,10 @@ struct NeuronNetwork
 	double beta2 = 0.999;
 	double d_epsilon = 0.000000001;
 
-	NeuronNetwork(int inputs_, int outputs_, int layers_, int neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
+	std::vector<std::vector<double>> train_data_inputs;
+	std::vector<std::vector<double>> train_data_outputs;
+
+	NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
 	{
 		algorithm = algorithm_;
 
@@ -433,6 +437,9 @@ struct NeuronNetwork
 		{
 			neuron_weigths[i] = randomWeight();
 		}
+
+		// clear train data from prev inits
+		clearTrainData();
 	}
 
 	void free()
@@ -529,13 +536,16 @@ struct NeuronNetwork
 		{
 			start = finish;
 			system("cls");
+
+			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << "\n";
+			std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
 			double avrg = 0;
 			for (double error : errors)
 			{
 				std::cout << error * 100 << "%" << std::endl;
 				avrg += error;
 			}
-			std::cout << "avrg " << (avrg / errors.size()) * 100 << "%" << std::endl;
+			std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
 		}
 
 		return errors;
@@ -564,6 +574,11 @@ struct NeuronNetwork
 		})());
 	}
 
+	void trainWhileError(double errorPercent, double errorPercentAvrg)
+	{
+		trainWhileError(train_data_inputs, train_data_outputs, errorPercent, errorPercentAvrg);
+	}
+
 	void saveFile(const std::string& file)
 	{
 		std::ofstream f;
@@ -572,7 +587,7 @@ struct NeuronNetwork
 		f << outputs << "\n";
 		f << layers << "\n";
 		f << neurons << "\n";
-		for(int i = 0; i < neuron_weigths_size; ++i)
+		for(unsigned i = 0; i < neuron_weigths_size; ++i)
 			f << neuron_weigths[i] << "\n";
 		f.close();
 	}
@@ -585,12 +600,45 @@ struct NeuronNetwork
 		free();
 		init();
 		double weight;
-		for (int i = 0; i < neuron_weigths_size; ++i)
+		for (unsigned i = 0; i < neuron_weigths_size; ++i)
 		{
 			f >> weight;
 			neuron_weigths[i] = weight;
 		}
 		f.close();
+	}
+
+	void loadTrainData(const std::string& file)
+	{
+		std::string line;
+		std::ifstream f(file);
+		while (getline(f, line))
+		{
+			std::stringstream s(line);
+			std::string arg;
+			std::vector<double> i;
+			std::vector<double> o;
+			while (getline(s, arg, ' ')) {
+				if (i.size() < inputs)
+					i.push_back(stod(arg));
+				else
+					o.push_back(stod(arg));
+			}
+			if (i.size() == inputs && o.size() == outputs)
+			{
+				train_data_inputs.push_back(i);
+				train_data_outputs.push_back(o);
+			}
+			else
+				assert(false);
+		}
+		f.close();
+	}
+
+	void clearTrainData()
+	{
+		train_data_inputs.clear();
+		train_data_outputs.clear();
 	}
 };
 
@@ -623,8 +671,9 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 25, 25, Adagrad);
+	NeuronNetwork n(2, 1, 1, 2, StochasticGradient);
 
+	/*
 	auto start = std::chrono::high_resolution_clock::now();
 	n.trainWhileError({
 		normalizeInput({ log(1), log(3) }, 0, 10),
@@ -669,6 +718,11 @@ int main()
 	for (auto& o : n.output())
 		std::cout << "out " << exp(deNormalizeOutput(o, 0, 10)) << std::endl;
 	n.saveFile("mul.ner");
+
+	*/
+
+	n.loadTrainData("xor.data");
+	n.trainWhileError(0, 1);
 
     return 0;
 }
