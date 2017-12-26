@@ -388,6 +388,7 @@ struct NeuronNetwork
 
 	std::vector<std::vector<double>> train_data_inputs;
 	std::vector<std::vector<double>> train_data_outputs;
+	std::string auto_save_file;
 
 	NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
 	{
@@ -480,6 +481,12 @@ struct NeuronNetwork
 		return out;
 	}
 
+	std::vector<double> get(const std::vector<double> &i)
+	{
+		forward(i);
+		return output();
+	}
+
 	double train(const double* i, const double* o)
 	{
 		memcpy(neuron_outputs, i, sizeof(double) * inputs);
@@ -547,6 +554,18 @@ struct NeuronNetwork
 			}
 			std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
 		}
+		static auto start2 = std::chrono::high_resolution_clock::now();
+		auto diff2 = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start2).count();
+		if (diff2 > 1000 * 1000 * 600)
+		{
+			start2 = finish;
+
+			if (!auto_save_file.empty())
+				saveFile(auto_save_file);
+
+			std::cout << "sv" << std::endl;
+		}
+
 
 		return errors;
 	}
@@ -576,6 +595,8 @@ struct NeuronNetwork
 
 	void trainWhileError(double errorPercent, double errorPercentAvrg)
 	{
+		if (train_data_inputs.size() == 0 || train_data_outputs.size() == 0)
+			return;
 		trainWhileError(train_data_inputs, train_data_outputs, errorPercent, errorPercentAvrg);
 	}
 
@@ -596,6 +617,8 @@ struct NeuronNetwork
 	{
 		std::ifstream f;
 		f.open(file);
+		if (!f.is_open())
+			return;
 		f >> inputs >> outputs >> layers >> neurons;
 		free();
 		init();
@@ -612,6 +635,8 @@ struct NeuronNetwork
 	{
 		std::string line;
 		std::ifstream f(file);
+		if (!f.is_open())
+			return;
 		while (getline(f, line))
 		{
 			std::stringstream s(line);
@@ -639,6 +664,12 @@ struct NeuronNetwork
 	{
 		train_data_inputs.clear();
 		train_data_outputs.clear();
+	}
+
+	void setAutoSaveFile(const std::string& file)
+	{
+		auto_save_file = file;
+		loadFile(file);
 	}
 };
 
@@ -671,7 +702,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 1, 2, StochasticGradient);
+	NeuronNetwork n(2, 1, 4, 4, Adam);
 
 	/*
 	auto start = std::chrono::high_resolution_clock::now();
@@ -721,8 +752,12 @@ int main()
 
 	*/
 
+	//n.setAutoSaveFile("xor.ner");
 	n.loadTrainData("xor.data");
-	n.trainWhileError(0, 1);
+	n.trainWhileError(0, 0.1);
+	auto result = n.get({ 1, 1 });
+	std::cout << "out " << result[0] << std::endl;
+
 
     return 0;
 }
