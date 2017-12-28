@@ -389,6 +389,7 @@ struct NeuronNetwork
 	std::vector<std::vector<double>> train_data_inputs;
 	std::vector<std::vector<double>> train_data_outputs;
 	std::string auto_save_file;
+	unsigned long long iterations = 0;
 
 	NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
 	{
@@ -441,6 +442,8 @@ struct NeuronNetwork
 
 		// clear train data from prev inits
 		clearTrainData();
+
+		iterations = 0;
 	}
 
 	void free()
@@ -519,6 +522,7 @@ struct NeuronNetwork
 			beta2,
 			d_epsilon
 		);
+		iterations++;
 		return err;
 	}
 
@@ -535,6 +539,19 @@ struct NeuronNetwork
 		{
 			errors.push_back(train(i[n], o[n]));
 		}
+		// shuffle
+		/*
+		for (auto s = i.size() - 1; s > 0; --s)
+		{
+			auto r = rand() % (s + 1);
+			auto i_back = i[r];
+			auto o_back = o[r];
+			i[r] = i[s];
+			o[r] = o[s];
+			i[s] = i_back;
+			o[s] = o_back;
+		}
+		*/
 		// print
 		static auto start = std::chrono::high_resolution_clock::now();
 		auto finish = std::chrono::high_resolution_clock::now();
@@ -546,6 +563,7 @@ struct NeuronNetwork
 
 			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << "\n";
 			std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
+			std::cout << "iterations: " << iterations << "\n";
 			double avrg = 0;
 			for (double error : errors)
 			{
@@ -703,7 +721,10 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	NeuronNetwork n(2, 1, 25, 25, Adagrad);
+	//srand(time(NULL));
+	NeuronNetwork n(2, 1, 2, 12, Adam);
+	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
+	
 
 	/*
 	std::ofstream f;
@@ -772,7 +793,8 @@ int main()
 		normalizeInput(std::vector<double>{ log(81) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(40) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(35) }, 0, 10),
-	}, 0, 1);
+	//}, 0, 1);
+	}, 0, 0.1);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
@@ -787,6 +809,10 @@ int main()
 	//n.trainWhileError(0, 0.5);
 	//auto result = n.get({ log(2) / log(100), log(2) / log(100) });
 	//std::cout << "out " << exp(result[0] * log(100)) << std::endl;
+
+	//auto a = std::vector<std::vector<double>>{ { 0, 1 },{ 1, 0 },{ 0, 0 },{ 1, 1 } };
+	//auto b = std::vector<std::vector<double>>{ { 1 },{ 1 },{ 0 },{ 0 } };
+	//n.trainWhileError(a, b, 0, 0.5);
 
     return 0;
 }
