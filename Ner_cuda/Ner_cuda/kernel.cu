@@ -106,20 +106,18 @@ enum TrainingAlgorithm {
 	Adam
 };
 
-__device__ double transferFunction(double x)
+__host__ __device__ double transferFunction(double x)
 {
 	return 1.0 / (1.0 + std::exp(-x));
 }
 
-__device__ double transferFunctionDerivative(double x)
+__host__ __device__ double transferFunctionDerivative(double x)
 {
 	return (1.0 - x) * x;
 }
 
-__global__ void forwardKernel(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+__host__ __device__ void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
-	int i = threadIdx.x;
-
 	unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
 	unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
 	unsigned prev_layer_size = (layer == 1 ? inputs : neurons) + 1;
@@ -137,19 +135,26 @@ __global__ void forwardKernel(double *outputs, double *weightes, const unsigned 
 	outputs[offset_neuron + i] = transferFunction(sum);
 }
 
-__global__ void calculateOutputDelta(double *outputs, double *delta, double *targets, const unsigned outputs_offset)
+__global__ void forwardKernelGPU(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
 	int i = threadIdx.x;
+	forwardKernel(i, outputs, weightes, layer, inputs, outputs_size, layers, neurons);
+}
 
+__host__ __device__ void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset)
+{
 	double delta_ = targets[i] - outputs[i + outputs_offset];
 	delta[i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[i + outputs_offset]);
 }
 
-
-__global__ void calculateHiddensDelta(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+__global__ void calculateOutputDeltaGPU(double *outputs, double *delta, double *targets, const unsigned outputs_offset)
 {
 	int i = threadIdx.x;
+	calculateOutputDelta(i, outputs, delta, targets, outputs_offset);
+}
 
+__host__ __device__ void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+{
 	unsigned neurons_size = neurons + 1;
 	unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
 	unsigned weight_offset = (inputs + 1) * neurons + (neurons + 1) * neurons * (layer - 1);
@@ -164,7 +169,15 @@ __global__ void calculateHiddensDelta(double *outputs, double *weightes, double 
 	delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
 }
 
-__global__ void updateInputWeights(
+__global__ void calculateHiddensDeltaGPU(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+{
+	int i = threadIdx.x;
+	calculateHiddensDelta(i, outputs, weightes, delta, layer, inputs, outputs_size, layers, neurons);
+}
+
+__host__ __device__ void updateInputWeights(
+	int i,
+
 	double *outputs,
 	double *weightes, 
 	double *delta, 
@@ -190,8 +203,6 @@ __global__ void updateInputWeights(
 	double d_epsilon = 0.000000001
 )
 {
-	int i = threadIdx.x;
-
 	unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
 	unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
 	unsigned prev_layer_size = (layer == 1 ? inputs : neurons) + 1;
@@ -259,14 +270,78 @@ __global__ void updateInputWeights(
 	}
 }
 
-void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons)
+__global__ void updateInputWeightsGPU(
+	double *outputs,
+	double *weightes,
+	double *delta,
+	double *delta_weight,
+
+	const unsigned layer,
+	const unsigned inputs,
+	const unsigned outputs_size,
+	const unsigned layers,
+	const unsigned neurons,
+
+	TrainingAlgorithm algorithm,
+
+	double *algorithm_e,
+	double *algorithm_m,
+	double *algorithm_v,
+	double *algorithm_t,
+
+	double rate,
+	double momentum,
+	double beta1,
+	double beta2,
+	double d_epsilon
+)
+{
+	int i = threadIdx.x;
+	updateInputWeights(
+		i,
+
+		outputs,
+		weightes,
+		delta,
+		delta_weight,
+
+		layer,
+		inputs,
+		outputs_size,
+		layers,
+		neurons,
+
+		algorithm,
+
+		algorithm_e,
+		algorithm_m,
+		algorithm_v,
+		algorithm_t,
+
+		rate,
+		momentum,
+		beta1,
+		beta2,
+		d_epsilon
+	);
+}
+
+void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, bool gpu)
 {
 	// forward
 	for (unsigned layer = 1; layer <= layers + 1; ++layer)
 	{
 		unsigned threads = (layer == layers + 1) ? outputs : neurons;
-		forwardKernel << <1, threads >> >(neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
-		cudaDeviceSynchronize();
+		if (gpu)
+		{
+			forwardKernelGPU << <1, threads >> >(neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
+			cudaDeviceSynchronize();
+		}
+		else
+		{
+			for(int i = 0; i < threads; ++i)
+				forwardKernel(i, neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
+		}
 	}
 
 }
@@ -298,6 +373,8 @@ void backPropagation(
 
 	TrainingAlgorithm algorithm,
 
+	bool gpu,
+
 	double *algorithm_e,
 	double *algorithm_m,
 	double *algorithm_v,
@@ -311,46 +388,98 @@ void backPropagation(
 )
 {
 	// calculate output delta
-	calculateOutputDelta << <1, outputs >> >(neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
-	cudaDeviceSynchronize();
+	if (gpu)
+	{
+		calculateOutputDeltaGPU << <1, outputs >> > (neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
+		cudaDeviceSynchronize();
+	}
+	else
+	{
+		for (int i = 0; i < outputs; ++i)
+			calculateOutputDelta(i, neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
+	}
 
 	// calculate hidden deltas
 	for (unsigned layer = layers; layer > 0; --layer)
 	{
-		calculateHiddensDelta << <1, neurons + 1 >> >(neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
-		cudaDeviceSynchronize();
+		if (gpu)
+		{
+			calculateHiddensDeltaGPU << <1, neurons + 1 >> >(neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
+			cudaDeviceSynchronize();
+		}
+		else
+		{
+			for (int i = 0; i < neurons + 1; ++i)
+				calculateHiddensDelta(i, neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
+		}
 	}
 
 	// update weights
 	for (unsigned layer = layers + 1; layer > 0; --layer)
 	{
 		unsigned threads = (layer == layers + 1) ? outputs : neurons;
-		updateInputWeights << <1, threads >> >(
-			neuron_outputs, 
-			neuron_weigths, 
-			neuron_delta, 
-			neuron_delta_weight, 
-			
-			layer, 
-			inputs, 
-			outputs, 
-			layers, 
-			neurons,
-			
-			algorithm,
+		if (gpu)
+		{
+			updateInputWeightsGPU << <1, threads >> > (
+				neuron_outputs,
+				neuron_weigths,
+				neuron_delta,
+				neuron_delta_weight,
 
-			algorithm_e,
-			algorithm_m,
-			algorithm_v,
-			algorithm_t,
+				layer,
+				inputs,
+				outputs,
+				layers,
+				neurons,
 
-			rate,
-			momentum,
-			beta1,
-			beta2,
-			d_epsilon
-		);
-		cudaDeviceSynchronize();
+				algorithm,
+
+				algorithm_e,
+				algorithm_m,
+				algorithm_v,
+				algorithm_t,
+
+				rate,
+				momentum,
+				beta1,
+				beta2,
+				d_epsilon
+				);
+			cudaDeviceSynchronize();
+		}
+		else
+		{
+			for (int i = 0; i < threads; ++i)
+			{
+				updateInputWeights(
+					i,
+
+					neuron_outputs,
+					neuron_weigths,
+					neuron_delta,
+					neuron_delta_weight,
+
+					layer,
+					inputs,
+					outputs,
+					layers,
+					neurons,
+
+					algorithm,
+
+					algorithm_e,
+					algorithm_m,
+					algorithm_v,
+					algorithm_t,
+
+					rate,
+					momentum,
+					beta1,
+					beta2,
+					d_epsilon
+				);
+			}
+		}
 	}
 }
 
@@ -385,6 +514,8 @@ struct NeuronNetwork
 	double beta1 = 0.9;
 	double beta2 = 0.999;
 	double d_epsilon = 0.000000001;
+
+	bool gpu = false;
 
 	std::vector<std::vector<double>> train_data_inputs;
 	std::vector<std::vector<double>> train_data_outputs;
@@ -471,7 +602,7 @@ struct NeuronNetwork
 	void forward(const std::vector<double> &i)
 	{
 		memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
-		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
+		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
 	}
 
 	std::vector<double> output() const
@@ -494,7 +625,7 @@ struct NeuronNetwork
 	{
 		memcpy(neuron_outputs, i, sizeof(double) * inputs);
 		memcpy(neuron_targets, o, sizeof(double) * outputs);
-		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons);
+		forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
 		double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
 		backPropagation(
 			neuron_outputs,
@@ -510,6 +641,8 @@ struct NeuronNetwork
 			outputs_offset_neurons,
 
 			algorithm,
+
+			gpu,
 
 			algorithm_e,
 			algorithm_m,
@@ -556,21 +689,10 @@ struct NeuronNetwork
 		static auto start = std::chrono::high_resolution_clock::now();
 		auto finish = std::chrono::high_resolution_clock::now();
 		auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-		if (diff > 1000 * 1000 * 56)
+		if (diff > 1000 * 1000 * 90)
 		{
 			start = finish;
-			system("cls");
-
-			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << "\n";
-			std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
-			std::cout << "iterations: " << iterations << "\n";
-			double avrg = 0;
-			for (double error : errors)
-			{
-				std::cout << error * 100 << "%" << std::endl;
-				avrg += error;
-			}
-			std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
+			printStatistic(errors);
 		}
 		static auto start2 = std::chrono::high_resolution_clock::now();
 		auto diff2 = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start2).count();
@@ -610,6 +732,7 @@ struct NeuronNetwork
 
 			return false;
 		})());
+		printStatistic(errors);
 	}
 
 	void trainWhileError(double errorPercent, double errorPercentAvrg)
@@ -617,6 +740,22 @@ struct NeuronNetwork
 		if (train_data_inputs.size() == 0 || train_data_outputs.size() == 0)
 			return;
 		trainWhileError(train_data_inputs, train_data_outputs, errorPercent, errorPercentAvrg);
+	}
+
+	void printStatistic(const std::vector<double>& errors)
+	{
+		system("cls");
+
+		std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << "\n";
+		std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
+		std::cout << "iterations: " << iterations << "\n";
+		double avrg = 0;
+		for (double error : errors)
+		{
+			std::cout << error * 100 << "%" << std::endl;
+			avrg += error;
+		}
+		std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
 	}
 
 	void saveFile(const std::string& file)
@@ -722,9 +861,10 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 int main()
 {
 	//srand(time(NULL));
-	NeuronNetwork n(2, 1, 2, 12, Adam);
-	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
+	//NeuronNetwork n(2, 1, 1, 3, StochasticGradient);
+	NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	
+	//n.gpu = true;
 
 	/*
 	std::ofstream f;
@@ -793,8 +933,8 @@ int main()
 		normalizeInput(std::vector<double>{ log(81) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(40) }, 0, 10),
 		normalizeInput(std::vector<double>{ log(35) }, 0, 10),
-	//}, 0, 1);
-	}, 0, 0.1);
+	}, 0, 1);
+	//}, 0, 0.1);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
