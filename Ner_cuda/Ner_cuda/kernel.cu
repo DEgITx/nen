@@ -860,9 +860,11 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	//srand(time(NULL));
-	//NeuronNetwork n(2, 1, 1, 3, StochasticGradient);
-	NeuronNetwork n(2, 1, 25, 25, Adagrad);
+	srand(time(NULL));
+	NeuronNetwork n(2, 1, 1, 3, StochasticGradient);
+	n.rate = 0.2;
+	n.momentum = 0.7;
+	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	
 	//n.gpu = true;
 
@@ -898,6 +900,7 @@ int main()
 	f.close();
 	*/
 
+	/*
 	auto start = std::chrono::high_resolution_clock::now();
 	n.trainWhileError({
 		normalizeInput({ log(1), log(3) }, 0, 10),
@@ -949,10 +952,18 @@ int main()
 	//n.trainWhileError(0, 0.5);
 	//auto result = n.get({ log(2) / log(100), log(2) / log(100) });
 	//std::cout << "out " << exp(result[0] * log(100)) << std::endl;
+	*/
 
-	//auto a = std::vector<std::vector<double>>{ { 0, 1 },{ 1, 0 },{ 0, 0 },{ 1, 1 } };
-	//auto b = std::vector<std::vector<double>>{ { 1 },{ 1 },{ 0 },{ 0 } };
-	//n.trainWhileError(a, b, 0, 0.5);
+	auto start = std::chrono::high_resolution_clock::now();
+	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 }};
+	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
+	n.trainWhileError(a, b, 0, 0.5);
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+	std::cout << "time: " << diff << " ms" << std::endl;
+	std::cout << n.iterations << " it\n";
+	std::cout << n.get({ 0, 1 })[0] << "\n";
+	std::cout << n.get({ 1, 1 })[0] << "\n";
 
     return 0;
 }
