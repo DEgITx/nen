@@ -1,6 +1,8 @@
 
+#if defined(__NVCC__) || defined(__CUDACC__)
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#endif
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -8,6 +10,19 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+
+#if !defined(__NVCC__) && !defined(__CUDACC__)
+template<typename Type>
+void cudaMallocManaged(Type** devPtr, size_t size)
+{
+	*devPtr = (Type*)calloc(1, size);
+}
+
+void cudaFree(void* devPtr)
+{
+	free(devPtr);
+}
+#endif
 
 /*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -106,17 +121,26 @@ enum TrainingAlgorithm {
 	Adam
 };
 
-__host__ __device__ double transferFunction(double x)
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+double transferFunction(double x)
 {
 	return 1.0 / (1.0 + std::exp(-x));
 }
 
-__host__ __device__ double transferFunctionDerivative(double x)
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+double transferFunctionDerivative(double x)
 {
 	return (1.0 - x) * x;
 }
 
-__host__ __device__ void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
 	unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
 	unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
@@ -135,25 +159,35 @@ __host__ __device__ void forwardKernel(int i, double *outputs, double *weightes,
 	outputs[offset_neuron + i] = transferFunction(sum);
 }
 
+#if defined(__NVCC__) || defined(__CUDACC__)
 __global__ void forwardKernelGPU(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
 	int i = threadIdx.x;
 	forwardKernel(i, outputs, weightes, layer, inputs, outputs_size, layers, neurons);
 }
+#endif
 
-__host__ __device__ void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset)
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset)
 {
 	double delta_ = targets[i] - outputs[i + outputs_offset];
 	delta[i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[i + outputs_offset]);
 }
 
+#if defined(__NVCC__) || defined(__CUDACC__)
 __global__ void calculateOutputDeltaGPU(double *outputs, double *delta, double *targets, const unsigned outputs_offset)
 {
 	int i = threadIdx.x;
 	calculateOutputDelta(i, outputs, delta, targets, outputs_offset);
 }
+#endif
 
-__host__ __device__ void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
 	unsigned neurons_size = neurons + 1;
 	unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
@@ -169,13 +203,18 @@ __host__ __device__ void calculateHiddensDelta(int i, double *outputs, double *w
 	delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
 }
 
+#if defined(__NVCC__) || defined(__CUDACC__)
 __global__ void calculateHiddensDeltaGPU(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
 {
 	int i = threadIdx.x;
 	calculateHiddensDelta(i, outputs, weightes, delta, layer, inputs, outputs_size, layers, neurons);
 }
+#endif
 
-__host__ __device__ void updateInputWeights(
+#if defined(__NVCC__) || defined(__CUDACC__)
+__host__ __device__ 
+#endif
+void updateInputWeights(
 	int i,
 
 	double *outputs,
@@ -270,6 +309,7 @@ __host__ __device__ void updateInputWeights(
 	}
 }
 
+#if defined(__NVCC__) || defined(__CUDACC__)
 __global__ void updateInputWeightsGPU(
 	double *outputs,
 	double *weightes,
@@ -325,6 +365,7 @@ __global__ void updateInputWeightsGPU(
 		d_epsilon
 	);
 }
+#endif
 
 void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, bool gpu)
 {
@@ -332,12 +373,14 @@ void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned input
 	for (unsigned layer = 1; layer <= layers + 1; ++layer)
 	{
 		unsigned threads = (layer == layers + 1) ? outputs : neurons;
+#if defined(__NVCC__) || defined(__CUDACC__)
 		if (gpu)
 		{
 			forwardKernelGPU << <1, threads >> >(neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
 			cudaDeviceSynchronize();
 		}
 		else
+#endif
 		{
 			for(int i = 0; i < threads; ++i)
 				forwardKernel(i, neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
@@ -388,12 +431,14 @@ void backPropagation(
 )
 {
 	// calculate output delta
+#if defined(__NVCC__) || defined(__CUDACC__)
 	if (gpu)
 	{
 		calculateOutputDeltaGPU << <1, outputs >> > (neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
 		cudaDeviceSynchronize();
 	}
 	else
+#endif
 	{
 		for (int i = 0; i < outputs; ++i)
 			calculateOutputDelta(i, neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
@@ -402,12 +447,14 @@ void backPropagation(
 	// calculate hidden deltas
 	for (unsigned layer = layers; layer > 0; --layer)
 	{
+#if defined(__NVCC__) || defined(__CUDACC__)
 		if (gpu)
 		{
 			calculateHiddensDeltaGPU << <1, neurons + 1 >> >(neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
 			cudaDeviceSynchronize();
 		}
 		else
+#endif
 		{
 			for (int i = 0; i < neurons + 1; ++i)
 				calculateHiddensDelta(i, neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
@@ -418,6 +465,7 @@ void backPropagation(
 	for (unsigned layer = layers + 1; layer > 0; --layer)
 	{
 		unsigned threads = (layer == layers + 1) ? outputs : neurons;
+#if defined(__NVCC__) || defined(__CUDACC__)
 		if (gpu)
 		{
 			updateInputWeightsGPU << <1, threads >> > (
@@ -448,6 +496,7 @@ void backPropagation(
 			cudaDeviceSynchronize();
 		}
 		else
+#endif
 		{
 			for (int i = 0; i < threads; ++i)
 			{
@@ -596,7 +645,9 @@ struct NeuronNetwork
 		free();
 		// cudaDeviceReset must be called before exiting in order for profiling and
 		// tracing tools such as Nsight and Visual Profiler to show complete traces.
+#if defined(__NVCC__) || defined(__CUDACC__)
 		cudaDeviceReset();
+#endif
 	}
 
 	void forward(const std::vector<double> &i)
@@ -860,7 +911,7 @@ std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double 
 
 int main()
 {
-	srand(time(NULL));
+	//srand(time(NULL));
 	NeuronNetwork n(2, 1, 1, 3, StochasticGradient);
 	n.rate = 0.2;
 	n.momentum = 0.7;
