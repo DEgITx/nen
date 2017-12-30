@@ -1,13 +1,14 @@
 {
   "name": "nen",
-  "version": "1.0.0",
-  "description": "Neural Network with native bindings",
+  "version": "0.2.0",
+  "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choise",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "install": "node-gyp rebuild"
   },
   "author": "Alexey Kasyanchuk",
+  "copyright": "Copyright © 2017 Alexey Kasyanchuk",
   "license": "ISC",
   "gypfile": true
 }
