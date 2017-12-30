@@ -51,13 +51,16 @@ const output = network.forward([0, 1]);
 
 console.log(output) // [ 0.9223849393847503 ]
 
-``` js
+```
 
 ## Performance
 
 hidden layers size: *width* x *height*
+
 rate: *0.02*
+
 error: *0.005*
+
 algorithm: *3* (default)
 
 network size  | iterations | time
