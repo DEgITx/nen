@@ -809,6 +809,7 @@ namespace NEN
 
 		void printStatistic(const std::vector<double>& errors)
 		{
+#ifdef _DEBUG
 			system("cls");
 
 			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << "\n";
@@ -821,6 +822,7 @@ namespace NEN
 				avrg += error;
 			}
 			std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
+#endif
 		}
 
 		void saveFile(const std::string& file)
