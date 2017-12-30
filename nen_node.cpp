@@ -83,12 +83,13 @@ private:
 
 	static std::vector<double> toVector(Isolate* isolate, const Handle<Value>& value)
 	{
-	  if(!value->IsArray())
+	  Handle<Array> values = Handle<Array>::Cast(value);
+	  if(!values->IsArray())
 	  {
 	  	isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Wrong arguments")));
 	  }
-	  Handle<Array> values = Handle<Array>::Cast(value);
 	  std::vector<double> values_c;
+
 	  int length = values->Get(String::NewFromUtf8(isolate, "length"))->ToObject()->Uint32Value();
 	  for(int i = 0; i < length; i++)
 	  {
@@ -107,6 +108,7 @@ private:
 	  Handle<Array> values = Handle<Array>::Cast(value);
 	  std::vector<std::vector<double>> values_c;
 	  int length = values->Get(String::NewFromUtf8(isolate, "length"))->ToObject()->Uint32Value();
+	  std::vector<double> val_c;
 	  for(int i = 0; i < length; i++)
 	  {
 	  	auto val = values->Get(i);
@@ -116,11 +118,11 @@ private:
 	  	}
 	  	else
 	  	{
-	  		std::vector<double> val_c;
 	  		val_c.push_back(val->NumberValue());
-	  		values_c.push_back(val_c);
 	  	}
 	  }
+	  if(val_c.size() != 0)
+	  	values_c.push_back(val_c);
 	  return values_c;
 	}
 
@@ -150,27 +152,12 @@ private:
 	  Isolate* isolate = args.GetIsolate();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  std::vector<std::vector<double>> inputs = toVectorVector(isolate, args[0]);
-	  std::vector<std::vector<double>> outputs = toVectorVector(isolate, args[1]);
+	  std::vector<double> inputs = toVector(isolate, args[0]);
+	  std::vector<double> outputs = toVector(isolate, args[1]);
 
-	 // unsigned long long target_error = 0;
-	  //Handle<Object> options = Handle<Object>::Cast(args[2]);
-	  //if(options->IsObject())
-	 // {
-	  //	target_error = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
-	 // }
+	  auto error = network->train(inputs, outputs);
 
-	  std::vector<double> errors;
-	  //if(error <= 0)
-	  //{
-	  	errors = network->train(inputs, outputs);
-	 // }
-	 // else
-	 // {
-	 // 	for
-	 // }
-
-	  args.GetReturnValue().Set(toArray(isolate, errors));
+	  args.GetReturnValue().Set(Number::New(isolate, error));
 	}
 
 	static void BackProp(const FunctionCallbackInfo<Value>& args) {

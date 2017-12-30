@@ -731,7 +731,11 @@ namespace NEN
 
 		std::vector<double> train(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o)
 		{
-			assert(i.size() == o.size());
+			int s1 = i.size();
+			int s2 = o.size();
+			assert(s1 == 1);
+			assert(s2 == 1);
+			assert(s1 == s2);
 			std::vector<double> errors;
 			for (unsigned n = 0; n < i.size(); ++n)
 			{
