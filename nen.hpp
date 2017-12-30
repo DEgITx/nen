@@ -544,7 +544,7 @@ namespace NEN
 		unsigned outputs;
 		unsigned layers;
 		unsigned neurons;
-		TrainingAlgorithm algorithm = StochasticGradient;
+		TrainingAlgorithm algorithm = Adam;
 
 		double* neuron_outputs;
 		double* neuron_delta;
@@ -575,7 +575,7 @@ namespace NEN
 		std::string auto_save_file;
 		unsigned long long iterations = 0;
 
-		NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = StochasticGradient)
+		NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = Adam)
 		{
 			algorithm = algorithm_;
 

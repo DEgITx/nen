@@ -1,7 +1,7 @@
 {
   "name": "nen",
   "version": "0.2.0",
-  "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choise",
+  "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

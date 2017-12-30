@@ -149,15 +149,17 @@ private:
 	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
 	  }
 
-	  double error;
 	  if(args[0]->IsArray() && Handle<Array>::Cast(args[0])->Get(0)->IsArray())
 	  {
+	  	std::vector<double> errors;
 	  	std::vector<std::vector<double>> inputs = toVectorVector(isolate, args[0]);
 	  	std::vector<std::vector<double>> outputs = toVectorVector(isolate, args[1]);
 	  	if(error_target > 0)
-	  		error = network->trainWhileError(inputs, outputs, 0, error_target)[0];
+	  		errors = network->trainWhileError(inputs, outputs, 0, error_target);
 	  	else
-	  		error = network->train(inputs, outputs)[0];
+	  		errors = network->train(inputs, outputs);
+
+	  	args.GetReturnValue().Set(toArray(isolate, errors));
 	  }
 	  else
 	  {
@@ -166,10 +168,10 @@ private:
 	  	//if(error_target > 0)
 	  	//	error = network->trainWhileError(inputs, outputs, 0, error_target);
 	  	//else
-	  		error = network->train(inputs, outputs);
-	  }
+	  	double error = network->train(inputs, outputs);
 
-	  args.GetReturnValue().Set(Number::New(isolate, error));
+	  	args.GetReturnValue().Set(Number::New(isolate, error));
+	  }
 	}
 
 	static void BackProp(const FunctionCallbackInfo<Value>& args) {
