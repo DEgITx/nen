@@ -90,7 +90,7 @@ private:
 	  }
 	  std::vector<double> values_c;
 
-	  int length = values->Get(String::NewFromUtf8(isolate, "length"))->ToObject()->Uint32Value();
+	  int length = values->Length();
 	  for(int i = 0; i < length; i++)
 	  {
 	  	values_c.push_back(values->Get(i)->NumberValue());
@@ -107,7 +107,7 @@ private:
 	  }
 	  Handle<Array> values = Handle<Array>::Cast(value);
 	  std::vector<std::vector<double>> values_c;
-	  int length = values->Get(String::NewFromUtf8(isolate, "length"))->ToObject()->Uint32Value();
+	  int length = values->Length();
 	  std::vector<double> val_c;
 	  for(int i = 0; i < length; i++)
 	  {
