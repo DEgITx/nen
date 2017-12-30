@@ -11,7 +11,7 @@ public:
 
 	NeuralNetwork(unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons)
 	{
-		network = new NEN::NeuronNetwork(inputs, outputs, layers, neurons, NEN::StochasticGradient);
+		network = new NEN::NeuronNetwork(inputs, outputs, layers, neurons, NEN::Adam);
 	}
 
 	~NeuralNetwork() {
