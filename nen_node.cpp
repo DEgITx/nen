@@ -108,21 +108,10 @@ private:
 	  Handle<Array> values = Handle<Array>::Cast(value);
 	  std::vector<std::vector<double>> values_c;
 	  int length = values->Length();
-	  std::vector<double> val_c;
 	  for(int i = 0; i < length; i++)
 	  {
-	  	auto val = values->Get(i);
-	  	if(val->IsArray())
-	  	{
-	  		values_c.push_back(toVector(isolate, val));
-	  	}
-	  	else
-	  	{
-	  		val_c.push_back(val->NumberValue());
-	  	}
+	  	values_c.push_back(toVector(isolate, values->Get(i)));
 	  }
-	  if(val_c.size() != 0)
-	  	values_c.push_back(val_c);
 	  return values_c;
 	}
 
@@ -152,10 +141,19 @@ private:
 	  Isolate* isolate = args.GetIsolate();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  std::vector<double> inputs = toVector(isolate, args[0]);
-	  std::vector<double> outputs = toVector(isolate, args[1]);
-
-	  auto error = network->train(inputs, outputs);
+	  double error;
+	  if(args[0]->IsArray() && Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+	  {
+	  	std::vector<std::vector<double>> inputs = toVectorVector(isolate, args[0]);
+	  	std::vector<std::vector<double>> outputs = toVectorVector(isolate, args[1]);
+	  	error = network->train(inputs, outputs)[0];
+	  }
+	  else
+	  {
+	  	std::vector<double> inputs = toVector(isolate, args[0]);
+	  	std::vector<double> outputs = toVector(isolate, args[1]);
+	  	error = network->train(inputs, outputs);
+	  }
 
 	  args.GetReturnValue().Set(Number::New(isolate, error));
 	}
