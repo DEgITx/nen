@@ -776,7 +776,7 @@ namespace NEN
 			return errors;
 		}
 
-		void trainWhileError(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double errorPercent, double errorPercentAvrg)
+		std::vector<double> trainWhileError(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double errorPercent, double errorPercentAvrg)
 		{
 			std::vector<double> errors;
 			do {
@@ -798,6 +798,7 @@ namespace NEN
 				return false;
 			})());
 			printStatistic(errors);
+			return errors;
 		}
 
 		void trainWhileError(double errorPercent, double errorPercentAvrg)

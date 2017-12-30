@@ -3,9 +3,9 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 1, 3, NEN::StochasticGradient);
+	NEN::NeuronNetwork n(2, 1, 1, 3, NEN::Adam);
 	n.rate = 0.2;
-	n.momentum = 0.7;
+	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	
 	//n.gpu = true;

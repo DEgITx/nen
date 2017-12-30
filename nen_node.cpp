@@ -35,11 +35,12 @@ public:
 
 	static void Methods(Local<FunctionTemplate>& tpl)
 	{
-	  NODE_SET_PROTOTYPE_METHOD(tpl, "layers", Layers);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "iterations", Iterations);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "forward", Forward);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "train", Train);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "backPropagate", BackProp);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
 	}
 private:
 	static v8::Persistent<v8::Function> constructor;
@@ -74,11 +75,11 @@ private:
 		}
 	}
 
-	static void Layers(const FunctionCallbackInfo<Value>& args) {
+	static void Iterations(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
 	  NEN::NeuronNetwork* obj = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  args.GetReturnValue().Set(Number::New(isolate, obj->layers));
+	  args.GetReturnValue().Set(Number::New(isolate, obj->iterations));
 	}
 
 	static std::vector<double> toVector(Isolate* isolate, const Handle<Value>& value)
@@ -141,18 +142,31 @@ private:
 	  Isolate* isolate = args.GetIsolate();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
+	  double error_target = 0;
+	  if(!args[2]->IsUndefined() && args[2]->IsObject())
+	  {
+	  	Handle<Object> options = Handle<Object>::Cast(args[2]);
+	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
+	  }
+
 	  double error;
 	  if(args[0]->IsArray() && Handle<Array>::Cast(args[0])->Get(0)->IsArray())
 	  {
 	  	std::vector<std::vector<double>> inputs = toVectorVector(isolate, args[0]);
 	  	std::vector<std::vector<double>> outputs = toVectorVector(isolate, args[1]);
-	  	error = network->train(inputs, outputs)[0];
+	  	if(error_target > 0)
+	  		error = network->trainWhileError(inputs, outputs, 0, error_target)[0];
+	  	else
+	  		error = network->train(inputs, outputs)[0];
 	  }
 	  else
 	  {
 	  	std::vector<double> inputs = toVector(isolate, args[0]);
 	  	std::vector<double> outputs = toVector(isolate, args[1]);
-	  	error = network->train(inputs, outputs);
+	  	//if(error_target > 0)
+	  	//	error = network->trainWhileError(inputs, outputs, 0, error_target);
+	  	//else
+	  		error = network->train(inputs, outputs);
 	  }
 
 	  args.GetReturnValue().Set(Number::New(isolate, error));
@@ -173,6 +187,13 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  network->algorithm = (NEN::TrainingAlgorithm)((int)args[0]->NumberValue());
+	}
+
+	static void setRate(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->rate = args[0]->NumberValue();
 	}
 };
 
