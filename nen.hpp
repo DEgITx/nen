@@ -676,11 +676,14 @@ namespace NEN
 			return output();
 		}
 
-		double train(const double* i, const double* o)
+		double backPropagate(const std::vector<double>& o)
 		{
-			memcpy(neuron_outputs, i, sizeof(double) * inputs);
+			return backPropagate(o.data());
+		}
+
+		double backPropagate(const double* o)
+		{
 			memcpy(neuron_targets, o, sizeof(double) * outputs);
-			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
 			double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
 			backPropagation(
 				neuron_outputs,
@@ -710,8 +713,15 @@ namespace NEN
 				beta2,
 				d_epsilon
 			);
-			iterations++;
 			return err;
+		}
+
+		double train(const double* i, const double* o)
+		{
+			iterations++;
+			memcpy(neuron_outputs, i, sizeof(double) * inputs);
+			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+			return backPropagate(o);
 		}
 
 		double train(const std::vector<double>& i, const std::vector<double>& o)

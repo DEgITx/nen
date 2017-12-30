@@ -1,0 +1,13 @@
+{
+  "name": "nen",
+  "version": "1.0.0",
+  "description": "Neural Network with native bindings",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
+  },
+  "author": "Alexey Kasyanchuk",
+  "license": "ISC",
+  "gypfile": true
+}
