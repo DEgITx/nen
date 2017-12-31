@@ -4,7 +4,7 @@ int main()
 {
 	//srand(time(NULL));
 	NEN::NeuronNetwork n(2, 1, 1, 3);
-	n.rate = 0.2;
+	n.rate = 0.02;
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	

@@ -85,7 +85,7 @@ forward input data throuth network and return output result in array
 ### setRate( *rate* )
 
 set learting rate
-default: 0.01
+default: 0.02
 
 ### setAlgorithm( *algorithm* )
 

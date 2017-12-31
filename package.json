@@ -1,6 +1,6 @@
 {
   "name": "nen",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {
@@ -10,5 +10,10 @@
   "author": "Alexey Kasyanchuk",
   "copyright": "Copyright © 2017 Alexey Kasyanchuk",
   "license": "ISC",
-  "gypfile": true
+  "gypfile": true,
+  "keywords": [
+    "neural network",
+    "machine learning",
+    "native"
+  ]
 }

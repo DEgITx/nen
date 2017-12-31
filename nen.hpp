@@ -813,7 +813,7 @@ namespace NEN
 #ifdef _DEBUG
 			system("cls");
 
-			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << "\n";
+			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << " algorithm = " << algorithm << "\n";
 			std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
 			std::cout << "iterations: " << iterations << "\n";
 			double avrg = 0;
