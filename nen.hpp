@@ -11,6 +11,8 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <functional>
+#include <algorithm>
 
 #if !defined(__NVCC__) && !defined(__CUDACC__)
 template<typename Type>
@@ -575,6 +577,10 @@ namespace NEN
 		std::string auto_save_file;
 		unsigned long long iterations = 0;
 
+		std::vector<double*> genetic_population;
+		int genetic_population_size = 10;
+		int genetic_elite_part = 3;
+
 		NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = Adam)
 		{
 			algorithm = algorithm_;
@@ -658,6 +664,12 @@ namespace NEN
 		{
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
 			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+		}
+
+		void forward(const std::vector<double> &i, double* weigths)
+		{
+			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
+			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, gpu);
 		}
 
 		std::vector<double> output() const
@@ -896,6 +908,68 @@ namespace NEN
 		{
 			auto_save_file = file;
 			loadFile(file);
+		}
+
+		// genetic algorithm
+		void genetic(std::function<bool(double*, double*)> genetic_fitness)
+		{
+			// copy population
+			if (genetic_population.size() != genetic_population_size)
+			{
+				for (double* entity : genetic_population)
+					cudaFree(entity);
+
+				double* entity;
+				cudaMallocManaged(&entity, neuron_weigths_size * sizeof(double));
+				memcpy(entity, neuron_weigths, neuron_weigths_size * sizeof(double));
+				genetic_population.push_back(entity);
+
+				for (int i = 1; i < genetic_population_size; ++i)
+				{
+					double* entity;
+					cudaMallocManaged(&entity, neuron_weigths_size * sizeof(double));
+					for (unsigned j = 0; j < neuron_weigths_size; j++)
+						entity[j] = ((double)rand() / (RAND_MAX));
+					genetic_population.push_back(entity);
+				}
+			}
+			// sort population
+			std::sort(genetic_population.begin(), genetic_population.end(), genetic_fitness);
+			unsigned elite = genetic_population_size / genetic_elite_part;
+
+			// out best result
+			memcpy(neuron_weigths, genetic_population[0], neuron_weigths_size * sizeof(double));
+
+			// populate
+			//for(int i = 1; i < genetic_population_size / elite; i++)
+			//	for(int j = 0; j < elite; j++)
+			//		memcpy(genetic_population[i * elite + j], genetic_population[j], neuron_weigths_size * sizeof(double));
+
+			for (int i = elite; i < genetic_population_size; ++i)
+			{
+				double* bad_entity = genetic_population[i];
+
+				// crossing over
+				double* random_elite = genetic_population[rand() % elite];
+				for (unsigned gen = 0; gen < neuron_weigths_size; ++gen)
+					if (rand() % 2 == 1)
+						bad_entity[gen] = random_elite[gen];
+
+				// mutation
+				//for (unsigned gen = 0; gen < neuron_weigths_size; ++gen)
+				//	if (rand() % 4 == 1)
+				//		bad_entity[gen] = ((double)rand() / (RAND_MAX));
+				for (unsigned gen = 0; gen < neuron_weigths_size; ++gen)
+				{
+					if (rand() % 4 == 1)
+					{
+						//bad_entity[gen] += (((double)rand() / (RAND_MAX)) * 2 - 1) / (10 + iterations);
+
+						bad_entity[gen] += (((double)rand() / (RAND_MAX)) * 2 - 1) * rate;
+					}
+				}
+			}
+			iterations++;
 		}
 	};
 
