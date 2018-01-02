@@ -44,12 +44,12 @@ const outputData = [
 ]
 
 // start learning process until reaching average 0.5% errors (0.005)
-const errors = network.train(inputData, outputData, { error: 0.5 });
+const errors = network.train(inputData, outputData, { error: 0.5, sync: true });
 
 // lets try now our data through learned neural network
 const output = network.forward([0, 1]);
 
-console.log(output) // [ 0.9223849393847503 ]
+console.log(output) // [ 0.9451534677309323 ]
 
 ```
 
@@ -77,6 +77,8 @@ network size  | iterations | time
 ### train( *[inputData]*, *[outputData]*, *options* )
 
 train network with input and output data
+
+returns Promise by default or errors array if sync setted to true in options
 
 ### forward( *[inputData]* )
 

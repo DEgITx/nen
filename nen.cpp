@@ -1,5 +1,4 @@
 #include "nen.hpp"
-
 #include <windows.h>
 
 int main()

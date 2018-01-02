@@ -788,23 +788,22 @@ namespace NEN
 			return errors;
 		}
 
-		std::vector<double> trainWhileError(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double errorPercent, double errorPercentAvrg)
+		std::vector<double> train(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double error_)
 		{
 			std::vector<double> errors;
 			do {
 				errors = train(i, o);
 			} while (([&]() {
+				if (error_ == 0)
+					return false;
+
 				double errorAvrg = 0;
 				for (auto error : errors)
 				{
 					errorAvrg += error;
-					if (errorPercent > 0 && error * 100 >= errorPercent)
-					{
-						return true;
-					}
 				}
 				errorAvrg /= errors.size();
-				if (errorAvrg * 100 > errorPercentAvrg)
+				if (errorAvrg * 100 > error_)
 					return true;
 
 				return false;
@@ -813,11 +812,11 @@ namespace NEN
 			return errors;
 		}
 
-		void trainWhileError(double errorPercent, double errorPercentAvrg)
+		void train(double error_)
 		{
 			if (train_data_inputs.size() == 0 || train_data_outputs.size() == 0)
 				return;
-			trainWhileError(train_data_inputs, train_data_outputs, errorPercent, errorPercentAvrg);
+			train(train_data_inputs, train_data_outputs, error_);
 		}
 
 		void printStatistic(const std::vector<double>& errors)

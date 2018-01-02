@@ -2,6 +2,7 @@
 #include <node_object_wrap.h>
 #include <v8.h>
 #include "nen.hpp"
+#include <uv.h>
 
 using namespace v8;
 
@@ -142,35 +143,79 @@ private:
 	  Isolate* isolate = args.GetIsolate();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
+	  bool async = true;
 	  double error_target = 0;
+
 	  if(!args[2]->IsUndefined() && args[2]->IsObject())
 	  {
 	  	Handle<Object> options = Handle<Object>::Cast(args[2]);
 	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
+	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue();
 	  }
 
-	  if(args[0]->IsArray() && Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+	  if(args[0]->IsArray() && args[1]->IsArray())
 	  {
 	  	std::vector<double> errors;
-	  	std::vector<std::vector<double>> inputs = toVectorVector(isolate, args[0]);
-	  	std::vector<std::vector<double>> outputs = toVectorVector(isolate, args[1]);
-	  	if(error_target > 0)
-	  		errors = network->trainWhileError(inputs, outputs, 0, error_target);
+	  	std::vector<std::vector<double>> inputs;
+	  	std::vector<std::vector<double>> outputs;
+	  	if(Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+	  	{
+	  		inputs = toVectorVector(isolate, args[0]);
+	  		outputs = toVectorVector(isolate, args[1]);
+	  	}
 	  	else
-	  		errors = network->train(inputs, outputs);
+	  	{
+	  		inputs.push_back(toVector(isolate, args[0]));
+	  		outputs.push_back(toVector(isolate, args[1]));
+	  	}
 
-	  	args.GetReturnValue().Set(toArray(isolate, errors));
-	  }
-	  else
-	  {
-	  	std::vector<double> inputs = toVector(isolate, args[0]);
-	  	std::vector<double> outputs = toVector(isolate, args[1]);
-	  	//if(error_target > 0)
-	  	//	error = network->trainWhileError(inputs, outputs, 0, error_target);
-	  	//else
-	  	double error = network->train(inputs, outputs);
+	  	if(async)
+	  	{
+	  		Persistent<Promise::Resolver, CopyablePersistentTraits<Promise::Resolver>> persistent;
+	  		persistent.Reset(isolate, v8::Promise::Resolver::New(isolate));
+	  		v8::Local<v8::Promise::Resolver> resolver = v8::Local<v8::Promise::Resolver>::New(isolate, persistent);
+	  		args.GetReturnValue().Set(resolver->GetPromise());
 
-	  	args.GetReturnValue().Set(Number::New(isolate, error));
+  			uv_work_t * req = new uv_work_t;
+  			struct ReqArgs
+			{
+				Persistent<Promise::Resolver, CopyablePersistentTraits<Promise::Resolver>> persistent;
+				NEN::NeuronNetwork* network;
+				std::vector<double> errors;
+				std::vector<std::vector<double>> inputs;
+				std::vector<std::vector<double>> outputs;
+				double error_target;
+			}* req_args = new ReqArgs;
+			req->data = req_args;
+
+  			req_args->persistent = persistent;
+  			req_args->network = network;
+  			req_args->inputs = toVectorVector(isolate, args[0]);
+  			req_args->outputs = toVectorVector(isolate, args[1]);
+  			req_args->error_target = error_target;
+
+  			uv_queue_work(uv_default_loop(), req, [](uv_work_t *req)
+  			{
+  				ReqArgs* data = (ReqArgs*)req->data;
+  				data->errors = data->network->train(data->inputs, data->outputs, data->error_target);
+  			}, [](uv_work_t *req, int status)
+			{
+				ReqArgs* data = (ReqArgs*)req->data;
+				v8::Isolate* isolate = v8::Isolate::GetCurrent();
+				v8::HandleScope scope(isolate);
+
+				v8::Local<v8::Promise::Resolver> local = v8::Local<v8::Promise::Resolver>::New(isolate, data->persistent);
+				local->Resolve(toArray(isolate, data->errors));
+				
+				data->persistent.Reset();
+				delete data;
+			});
+	  	}
+	  	else
+	  	{
+	  		errors = network->train(inputs, outputs, error_target);
+	  		args.GetReturnValue().Set(toArray(isolate, errors));
+	  	}
 	  }
 	}
 

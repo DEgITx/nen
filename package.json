@@ -1,10 +1,11 @@
 {
   "name": "nen",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "watchtest": "jest --watch",
     "install": "node-gyp rebuild"
   },
   "author": "Alexey Kasyanchuk",
@@ -15,5 +16,8 @@
     "neural network",
     "machine learning",
     "native"
-  ]
+  ],
+  "dependencies": {
+    "jest": "^22.0.4"
+  }
 }
