@@ -173,9 +173,10 @@ int main()
 		//Sleep(1000);
 	}
 #endif
-	auto fitness = [&n, &a, &b](unsigned long long iteration, unsigned i) -> std::function<bool(double*, double*)> {
+	auto fitness = [&n, &a, &b](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 		std::vector<double> input = a[i];
-		return [input, &n, &b, i](double* c, double* d) -> bool {
+		return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
+		[input, &n, &b, i](double* c, double* d) -> bool {
 			n.forward(input, c);
 			double error1 = n.getError(b[i]);
 
@@ -183,7 +184,10 @@ int main()
 			double error2 = n.getError(b[i]);
 
 			return error1 < error2;
-		};
+		}, [input, &n, &b, i]() -> double {
+			n.forward(input);
+			return n.getError(b[i]);
+		});
 	};
 	n.train(a, b, 0.5, fitness);
 	auto finish = std::chrono::high_resolution_clock::now();

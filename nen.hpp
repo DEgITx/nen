@@ -741,13 +741,17 @@ namespace NEN
 			return err;
 		}
 
-		double train(const double* i, const double* o, const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>())
+		double train(
+			const double* i, 
+			const double* o, 
+			const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>(), 
+			const std::function<double()>& error_check = std::function<double()>()
+		)
 		{
 			if (fitness)
 			{
 				genetic(fitness);
-				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
-				return getError(o);
+				return error_check();
 			}
 			else
 			{
@@ -759,22 +763,33 @@ namespace NEN
 			return 1;
 		}
 
-		double train(const std::vector<double>& i, const std::vector<double>& o, const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>())
+		double train(
+			const std::vector<double>& i, 
+			const std::vector<double>& o, 
+			const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>(), 
+			const std::function<double()>& error_check = std::function<double()>()
+		)
 		{
-			return train(i.data(), o.data(), fitness);
+			return train(i.data(), o.data(), fitness, error_check);
 		}
 
 		std::vector<double> train(
 			const std::vector<std::vector<double>> &i, 
 			const std::vector<std::vector<double>> &o,
-			const std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>& fitness = std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>()
+			const std::function<
+				std::pair<std::function<bool(double*, double*)>, 
+				std::function<double()>
+			>(unsigned long long, unsigned)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long, unsigned)>()
 		)
 		{
 			std::vector<double> errors;
 			for (unsigned n = 0; n < i.size(); ++n)
 			{
 				if (fitness)
-					errors.push_back(train(i[n], o[n], fitness(iterations, n)));
+				{
+					auto ft = fitness(iterations, n);
+					errors.push_back(train(i[n], std::vector<double>(), ft.first, ft.second));
+				}
 				else
 					errors.push_back(train(i[n], o[n]));
 			}
@@ -821,7 +836,10 @@ namespace NEN
 			const std::vector<std::vector<double>> &i, 
 			const std::vector<std::vector<double>> &o, 
 			double error_ = 0,
-			const std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>& fitness = std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>()
+			const std::function<
+				std::pair<std::function<bool(double*, double*)>, 
+				std::function<double()>
+			>(unsigned long long, unsigned)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long, unsigned)>()
 		)
 		{
 			std::vector<double> errors;

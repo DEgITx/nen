@@ -20,6 +20,7 @@ test('test basic xor network', () => {
   const errors = network.train(inputData, outputData, { error: 0.5, sync: true });
   expect(errors.length).toBe(4);
   expect(errors[0]).toBeLessThan(0.01);
+  expect(network.iterations()).toBe(1512);
 });
 
 test('test xor network forward', () => {
