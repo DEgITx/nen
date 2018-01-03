@@ -580,6 +580,8 @@ namespace NEN
 		std::vector<double*> genetic_population;
 		int genetic_population_size = 10;
 		int genetic_elite_part = 3;
+		int genetic_max_weight = 40;
+		bool genetic_populate = true;
 
 		NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = Adam)
 		{
@@ -940,9 +942,12 @@ namespace NEN
 			memcpy(neuron_weigths, genetic_population[0], neuron_weigths_size * sizeof(double));
 
 			// populate
-			//for(int i = 1; i < genetic_population_size / elite; i++)
-			//	for(int j = 0; j < elite; j++)
-			//		memcpy(genetic_population[i * elite + j], genetic_population[j], neuron_weigths_size * sizeof(double));
+			if (genetic_populate)
+			{
+				for (int i = 1; i < genetic_population_size / elite; i++)
+					for (int j = 0; j < elite; j++)
+						memcpy(genetic_population[i * elite + j], genetic_population[j], neuron_weigths_size * sizeof(double));
+			}
 
 			for (int i = elite; i < genetic_population_size; ++i)
 			{
@@ -962,8 +967,8 @@ namespace NEN
 				{
 					if (rand() % 4 == 1)
 					{
-						//bad_entity[gen] += (((double)rand() / (RAND_MAX)) * 2 - 1) / (10 + iterations);
-
+						if (bad_entity[gen] > genetic_max_weight || bad_entity[gen] < -genetic_max_weight)
+							bad_entity[gen] = (((double)rand() / (RAND_MAX)) * 2 - 1);
 						bad_entity[gen] += (((double)rand() / (RAND_MAX)) * 2 - 1) * rate;
 					}
 				}
