@@ -6,7 +6,7 @@ int main()
 	//srand(time(NULL));
 	NEN::NeuronNetwork n(2, 1, 1, 4);
 	//n.rate = 0.02;
-	n.rate = 0.2;
+	n.rate = 0.3;
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	
@@ -103,27 +103,36 @@ int main()
 	//std::cout << "out " << exp(result[0] * log(100)) << std::endl;
 	
 
-	//auto start = std::chrono::high_resolution_clock::now();
+	
 	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 }};
 	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
-	
-	/*
-	n.trainWhileError(a, b, 0, 0.5);
+
+#if 0
+	auto start = std::chrono::high_resolution_clock::now();
+	n.train(a, b, 0.5);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
 	std::cout << "time: " << diff << " ms" << std::endl;
 	std::cout << n.iterations << " it\n";
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
-	*/
+#endif
+
 	
+//#if 0
 	
 	double error = 1;
 	auto start = std::chrono::high_resolution_clock::now();
+	unsigned itlimit = 10000;
+#if 0
 	while (error > 0.005)
 	//for(int k = 0; k < 500; k++)
 	{
+		if (itlimit > 0 && n.iterations > itlimit)
+			break;
+
 		error = 0;
+		/*
 		for (int j = 0; j < a.size(); j++)
 		{
 			//n.forward(a[j]);
@@ -131,12 +140,10 @@ int main()
 			//error += n.train(a[j], b[j]);
 			n.genetic([&](double * c, double * d) {
 				n.forward(a[j], c);
-				memcpy(n.neuron_targets, b[j].data(), sizeof(double) * n.outputs);
-				double error1 = NEN::error(n.neuron_outputs, n.neuron_targets, n.outputs, n.outputs_offset_neurons);
+				double error1 = n.getError(b[j]);
 
 				n.forward(a[j], d);
-				memcpy(n.neuron_targets, b[j].data(), sizeof(double) * n.outputs);
-				double error2 = NEN::error(n.neuron_outputs, n.neuron_targets, n.outputs, n.outputs_offset_neurons);
+				double error2 = n.getError(b[j]);
 
 				return error1 < error2;
 			});
@@ -146,6 +153,9 @@ int main()
 			error += NEN::error(n.neuron_outputs, n.neuron_targets, n.outputs, n.outputs_offset_neurons);
 		}
 		error /= a.size();
+		*/
+		
+		/*
 		std::cout << error * 100 << "%";
 
 		
@@ -159,18 +169,38 @@ int main()
 		std::cout << " )";
 		
 		std::cout << "\n";
+		*/
 		//Sleep(1000);
 	}
+#endif
+	auto fitness = [&n, &a, &b](unsigned long long iteration, unsigned i) -> std::function<bool(double*, double*)> {
+		std::vector<double> input = a[i];
+		return [input, &n, &b, i](double* c, double* d) -> bool {
+			n.forward(input, c);
+			double error1 = n.getError(b[i]);
+
+			n.forward(input, d);
+			double error2 = n.getError(b[i]);
+
+			return error1 < error2;
+		};
+	};
+	n.train(a, b, 0.5, fitness);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
 	std::cout << "it: " << n.iterations << "\n";
 	std::cout << "time: " << diff << " ms" << std::endl;
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
+	std::cout << "w: ";
+	for (int i = 0; i < n.neuron_weigths_size; i++)
+		std::cout << n.neuron_weigths[i] << " ";
+
 	//n.forward(NEN::normalizeInput({ log(2), log(8) }, 0, 10));
 	//for (auto& o : n.output())
 	//	std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;	
 	
+//#endif
 
     return 0;
 }

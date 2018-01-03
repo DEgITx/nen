@@ -690,6 +690,17 @@ namespace NEN
 			return output();
 		}
 
+		double getError(const double* o)
+		{
+			memcpy(neuron_targets, o, sizeof(double) * outputs);
+			return error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+		}
+
+		double getError(const std::vector<double>& o)
+		{
+			return getError(o.data());
+		}
+
 		double backPropagate(const std::vector<double>& o)
 		{
 			return backPropagate(o.data());
@@ -730,26 +741,42 @@ namespace NEN
 			return err;
 		}
 
-		double train(const double* i, const double* o)
+		double train(const double* i, const double* o, const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>())
 		{
-			iterations++;
-			memcpy(neuron_outputs, i, sizeof(double) * inputs);
-			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
-			return backPropagate(o);
+			if (fitness)
+			{
+				genetic(fitness);
+				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+				return getError(o);
+			}
+			else
+			{
+				iterations++;
+				memcpy(neuron_outputs, i, sizeof(double) * inputs);
+				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+				return backPropagate(o);
+			}
+			return 1;
 		}
 
-		double train(const std::vector<double>& i, const std::vector<double>& o)
+		double train(const std::vector<double>& i, const std::vector<double>& o, const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>())
 		{
-			return train(i.data(), o.data());
+			return train(i.data(), o.data(), fitness);
 		}
 
-		std::vector<double> train(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o)
+		std::vector<double> train(
+			const std::vector<std::vector<double>> &i, 
+			const std::vector<std::vector<double>> &o,
+			const std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>& fitness = std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>()
+		)
 		{
-			assert(i.size() == o.size());
 			std::vector<double> errors;
 			for (unsigned n = 0; n < i.size(); ++n)
 			{
-				errors.push_back(train(i[n], o[n]));
+				if (fitness)
+					errors.push_back(train(i[n], o[n], fitness(iterations, n)));
+				else
+					errors.push_back(train(i[n], o[n]));
 			}
 			// shuffle
 			/*
@@ -790,11 +817,16 @@ namespace NEN
 			return errors;
 		}
 
-		std::vector<double> train(const std::vector<std::vector<double>> &i, const std::vector<std::vector<double>> &o, double error_)
+		std::vector<double> train(
+			const std::vector<std::vector<double>> &i, 
+			const std::vector<std::vector<double>> &o, 
+			double error_ = 0,
+			const std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>& fitness = std::function<std::function<bool(double*, double*)>(unsigned long long, unsigned)>()
+		)
 		{
 			std::vector<double> errors;
 			do {
-				errors = train(i, o);
+				errors = train(i, o, fitness);
 			} while (([&]() {
 				if (error_ == 0)
 					return false;
@@ -912,7 +944,7 @@ namespace NEN
 		}
 
 		// genetic algorithm
-		void genetic(std::function<bool(double*, double*)> genetic_fitness)
+		void genetic(const std::function<bool(double*, double*)>& genetic_fitness)
 		{
 			// copy population
 			if (genetic_population.size() != genetic_population_size)
