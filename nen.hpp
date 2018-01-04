@@ -13,6 +13,7 @@
 #include <sstream>
 #include <functional>
 #include <algorithm>
+#include <unordered_set>
 
 #if !defined(__NVCC__) && !defined(__CUDACC__)
 template<typename Type>
@@ -578,6 +579,7 @@ namespace NEN
 		unsigned long long iterations = 0;
 
 		std::vector<double*> genetic_population;
+		std::unordered_set<double*> genetic_population_allowed;
 		int genetic_population_size = 10;
 		int genetic_elite_part = 3;
 		int genetic_max_weight = 40;
@@ -670,6 +672,11 @@ namespace NEN
 
 		void forward(const std::vector<double> &i, double* weigths)
 		{
+#ifndef _DEBUG
+			if (genetic_population_allowed.find(weigths) == genetic_population_allowed.end())
+				return;
+#endif
+
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
 			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, gpu);
 		}
@@ -969,9 +976,11 @@ namespace NEN
 			{
 				for (double* entity : genetic_population)
 					cudaFree(entity);
+				genetic_population_allowed.clear();
 
 				double* entity;
 				cudaMallocManaged(&entity, neuron_weigths_size * sizeof(double));
+				genetic_population_allowed.insert(entity);
 				memcpy(entity, neuron_weigths, neuron_weigths_size * sizeof(double));
 				genetic_population.push_back(entity);
 
@@ -979,6 +988,7 @@ namespace NEN
 				{
 					double* entity;
 					cudaMallocManaged(&entity, neuron_weigths_size * sizeof(double));
+					genetic_population_allowed.insert(entity);
 					for (unsigned j = 0; j < neuron_weigths_size; j++)
 						entity[j] = ((double)rand() / (RAND_MAX));
 					genetic_population.push_back(entity);

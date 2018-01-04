@@ -40,6 +40,7 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "forward", Forward);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "train", Train);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "backPropagate", BackProp);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "error", Error);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
 	}
@@ -131,12 +132,33 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  std::vector<double> inputs_values = toVector(isolate, args[0]);
+	  double* pointer = nullptr;
 
-	  network->forward(inputs_values);
+	  if(args[1]->IsNumber())
+	  {
+	  	pointer = (double*)((uintptr_t)args[1]->NumberValue());
+	  }
+
+	  if(pointer)
+	  	network->forward(inputs_values, pointer);
+	  else
+	 	network->forward(inputs_values);
+	  
 	  auto outputs = network->output();
 	  Handle<Array> out = toArray(isolate, outputs);
 
 	  args.GetReturnValue().Set(out);
+	}
+
+	static void Error(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  std::vector<double> outputs_values = toVector(isolate, args[0]);
+
+	  auto error = network->getError(outputs_values);
+
+	  args.GetReturnValue().Set(Number::New(isolate, error));
 	}
 
 	static void Train(const FunctionCallbackInfo<Value>& args) {
@@ -153,20 +175,40 @@ private:
 	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue();
 	  }
 
-	  if(args[0]->IsArray() && args[1]->IsArray())
+	  if(args[0]->IsArray())
 	  {
 	  	std::vector<double> errors;
 	  	std::vector<std::vector<double>> inputs;
 	  	std::vector<std::vector<double>> outputs;
+	  	Local<Function> fitness;
+	  	Local<Function> fitness_error;
+	  	bool fitness_use = false;
+
 	  	if(Handle<Array>::Cast(args[0])->Get(0)->IsArray())
 	  	{
 	  		inputs = toVectorVector(isolate, args[0]);
-	  		outputs = toVectorVector(isolate, args[1]);
+	  		if(args[1]->IsArray())
+	  			outputs = toVectorVector(isolate, args[1]);
+	  		else if(args[1]->IsObject())
+	  		{
+	  			Handle<Object> fitness_object = Handle<Object>::Cast(args[1]);
+	  			fitness = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "fitness")));
+	  			fitness_error = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "error")));
+	  			fitness_use = true;
+	  		}
 	  	}
 	  	else
 	  	{
 	  		inputs.push_back(toVector(isolate, args[0]));
-	  		outputs.push_back(toVector(isolate, args[1]));
+	  		if(args[1]->IsArray())
+	  			outputs.push_back(toVector(isolate, args[1]));
+	  		else if(args[1]->IsObject())
+	  		{
+	  			Handle<Object> fitness_object = Handle<Object>::Cast(args[1]);
+	  			fitness = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "fitness")));
+	  			fitness_error = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "error")));
+	  			fitness_use = true;
+	  		}
 	  	}
 
 	  	if(async)
@@ -185,24 +227,71 @@ private:
 				std::vector<std::vector<double>> inputs;
 				std::vector<std::vector<double>> outputs;
 				double error_target;
+				Persistent<Function, CopyablePersistentTraits<Function>> fitness;
+				Persistent<Function, CopyablePersistentTraits<Function>> fitness_error;
+				bool fitness_use = false;
 			}* req_args = new ReqArgs;
 			req->data = req_args;
 
   			req_args->persistent = persistent;
   			req_args->network = network;
   			req_args->inputs = toVectorVector(isolate, args[0]);
-  			req_args->outputs = toVectorVector(isolate, args[1]);
+  			if(!fitness_use)
+  				req_args->outputs = toVectorVector(isolate, args[1]);
   			req_args->error_target = error_target;
+
+  			// fitness
+  			if(fitness_use)
+  			{
+  				Persistent<Function, CopyablePersistentTraits<Function>> persistent_fitness;
+  				persistent_fitness.Reset(isolate, fitness);
+  				req_args->fitness = persistent_fitness;
+
+  				Persistent<Function, CopyablePersistentTraits<Function>> persistent_fitness_error;
+  				persistent_fitness_error.Reset(isolate, fitness_error);
+  				req_args->fitness_error = persistent_fitness_error;
+
+  				req_args->fitness_use = true;
+  			}
 
   			uv_queue_work(uv_default_loop(), req, [](uv_work_t *req)
   			{
   				ReqArgs* data = (ReqArgs*)req->data;
-  				data->errors = data->network->train(data->inputs, data->outputs, data->error_target);
+  				if(!data->fitness_use)
+  					data->errors = data->network->train(data->inputs, data->outputs, data->error_target);
   			}, [](uv_work_t *req, int status)
 			{
 				ReqArgs* data = (ReqArgs*)req->data;
 				v8::Isolate* isolate = v8::Isolate::GetCurrent();
 				v8::HandleScope scope(isolate);
+
+				if(data->fitness_use)
+				{
+					Local<Function> fitness = Local<Function>::New(isolate, data->fitness);
+  					Local<Function> fitness_error = Local<Function>::New(isolate, data->fitness_error);
+  					auto network = data->network;
+  					auto inputs = data->inputs;
+  					auto context = isolate->GetCurrentContext()->Global();
+			  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network, &inputs](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
+						return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
+						[&isolate, &context, &fitness, &network, i, iteration](double* c, double* d) -> bool {
+							Handle<Value> argv[] = { 
+								Number::New(isolate, (uintptr_t)c), 
+								Number::New(isolate, (uintptr_t)d), 
+								Number::New(isolate, i), 
+								Number::New(isolate, iteration)
+							};
+							return fitness->Call(context, 4, argv)->BooleanValue();
+						}, [&network, &context, &isolate, &fitness_error, i, iteration]() -> double {
+							Handle<Value> argv[] = { 
+								Number::New(isolate, i), 
+								Number::New(isolate, iteration)
+							};
+							return fitness_error->Call(context, 2, argv)->NumberValue();
+						});
+					};
+					data->errors = network->train(inputs, data->outputs, data->error_target, fitness_func);
+				}
 
 				v8::Local<v8::Promise::Resolver> local = v8::Local<v8::Promise::Resolver>::New(isolate, data->persistent);
 				local->Resolve(toArray(isolate, data->errors));
@@ -213,7 +302,31 @@ private:
 	  	}
 	  	else
 	  	{
-	  		errors = network->train(inputs, outputs, error_target);
+			if(!fitness_use)
+	  			errors = network->train(inputs, outputs, error_target);
+	  		else
+	  		{
+	  			auto context = isolate->GetCurrentContext()->Global();
+		  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network, &inputs](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
+					return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
+					[&isolate, &context, &fitness, &network, i, iteration](double* c, double* d) -> bool {
+						Handle<Value> argv[] = { 
+							Number::New(isolate, (uintptr_t)c), 
+							Number::New(isolate, (uintptr_t)d), 
+							Number::New(isolate, i), 
+							Number::New(isolate, iteration)
+						};
+						return fitness->Call(context, 4, argv)->BooleanValue();
+					}, [&network, &context, &isolate, &fitness_error, i, iteration]() -> double {
+						Handle<Value> argv[] = { 
+							Number::New(isolate, i), 
+							Number::New(isolate, iteration)
+						};
+						return fitness_error->Call(context, 2, argv)->NumberValue();
+					});
+				};
+	  			errors = network->train(inputs, outputs, error_target, fitness_func);
+	  		}
 	  		args.GetReturnValue().Set(toArray(isolate, errors));
 	  	}
 	  }
