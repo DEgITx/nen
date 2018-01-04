@@ -47,10 +47,8 @@ test('genetic xor network', () => {
   network.setRate(0.3);
   
   network.train(inputData, {fitness: (a, b, i) => {
-      const values1 = network.forward(inputData[i], a);
-      const error1 = network.error(outputData[i]);
-      const values2 = network.forward(inputData[i], b);
-      const error2 = network.error(outputData[i]);
+      const error1 = network.error(outputData[i], inputData[i], a);
+      const error2 = network.error(outputData[i], inputData[i], b);
       return error1 < error2;
   }, error: (i) => { 
       const values = network.forward(inputData[i]);
@@ -67,10 +65,8 @@ test('async genetic xor network', async () => {
   const network = nen.NeuralNetwork(2, 1, 1, 4);
   network.setRate(0.3);
   await network.train(inputData, {fitness: (a, b, i) => {
-      const values1 = network.forward(inputData[i], a);
-      const error1 = network.error(outputData[i]);
-      const values2 = network.forward(inputData[i], b);
-      const error2 = network.error(outputData[i]);
+      const error1 = network.error(outputData[i], inputData[i], a);
+      const error2 = network.error(outputData[i], inputData[i], b);
       return error1 < error2;
   }, error: (i) => { 
       const values = network.forward(inputData[i]);

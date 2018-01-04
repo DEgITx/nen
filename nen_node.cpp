@@ -155,6 +155,19 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  std::vector<double> outputs_values = toVector(isolate, args[0]);
+	  if(args[1]->IsArray())
+	  {
+	  	std::vector<double> inputs_values = toVector(isolate, args[1]);
+	  	double* pointer = nullptr;
+	  	if(args[2]->IsNumber())
+	    {
+	  	   pointer = (double*)((uintptr_t)args[2]->NumberValue());
+	    }
+	    if(pointer)
+	  	  network->forward(inputs_values, pointer);
+	    else
+	 	  network->forward(inputs_values);
+	  }
 
 	  auto error = network->getError(outputs_values);
 
