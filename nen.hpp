@@ -4,6 +4,8 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #endif
+#include <cmath>
+#include <cstring>
 #include <stdio.h>
 #include <iostream>
 #include <vector>
