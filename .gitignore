@@ -247,3 +247,9 @@ ModelManifest.xml
 Ner_cuda/
 Ner/
 /test.js
+/a.exe
+/a.lib
+/a.exp
+/1.js
+/package-lock.json
+.git/

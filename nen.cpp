@@ -4,9 +4,9 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 5, 8);
+	NEN::NeuronNetwork n(2, 1, 2, 8);
 	//n.rate = 0.1;
-	n.rate = 0.3;
+	n.rate = 0.1;
 	n.activation = NEN::TanH;
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
@@ -108,7 +108,7 @@ int main()
 	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 }};
 	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
 
-#if 0
+
 	auto start = std::chrono::high_resolution_clock::now();
 	n.train(a, b, 0.5);
 	auto finish = std::chrono::high_resolution_clock::now();
@@ -118,7 +118,7 @@ int main()
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
 
-	
+#if 0
 	double error = 1;
 	auto start = std::chrono::high_resolution_clock::now();
 	unsigned itlimit = 10000;
@@ -170,7 +170,7 @@ int main()
 		//Sleep(1000);
 	}
 #endif
-//#if 0
+#if 0
 	auto start = std::chrono::high_resolution_clock::now();
 	auto fitness = [&n, &a, &b](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 		std::vector<double> input = a[i];
@@ -198,7 +198,7 @@ int main()
 	std::cout << "w: ";
 	for (int i = 0; i < n.neuron_weigths_size; i++)
 		std::cout << n.neuron_weigths[i] << " ";
-//#endif
+#endif
 
 	//n.forward(NEN::normalizeInput({ log(2), log(8) }, 0, 10));
 	//for (auto& o : n.output())
