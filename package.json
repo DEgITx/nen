@@ -1,6 +1,6 @@
 {
   "name": "nen",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {

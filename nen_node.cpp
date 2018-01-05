@@ -43,6 +43,7 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "error", Error);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setActivation", setActivation);
 	}
 private:
 	static v8::Persistent<v8::Function> constructor;
@@ -367,6 +368,13 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  network->rate = args[0]->NumberValue();
+	}
+
+	static void setActivation(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->activation = (NEN::ActivationFunction)((int)args[0]->NumberValue());
 	}
 };
 

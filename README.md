@@ -85,6 +85,10 @@ train network with input and output data
 
 returns Promise by default or errors array if sync setted to true in options
 
+#### train( *[inputData]*, {fitness: Function, error: Function}, *options* )
+
+train using fitness function
+
 ### forward( *[inputData]* )
 
 forward input data through network and return output result in array
@@ -102,6 +106,17 @@ default: 0.02
 
 set learning algorithm
 default: 3
+
+### setActivation( *activationType* )
+
+set actionvation function
+
+* 0 - Logistic
+* 1 - Hyperbolic tangent
+* 2 - Identity
+* 3 - Rectified linear unit
+
+default: 0
 
 ### error( *[outputData]* )
 
@@ -124,19 +139,28 @@ Sometimes we don't know exact output values. For such cases we can compare two n
 network.setRate(0.3) // set learning rate
 
 const errors = network.train(
-	inputData, // input data set, contains 4 learning cases
+	// input data set, contains 4 learning cases
+	inputData, 
 	{
-		fitness: (a, b, i) => { // compare network "a" with network "b" for set element number "i"
-      		const errorA = network.error(outputData[i], inputData[i], a); // forward inputData through "a" network and get error for outputData
-      		const errorB = network.error(outputData[i], inputData[i], b); // forward inputData through "b" network and get error for outputData
-      		return errorA < errorB; // network A must be BETTER then network B
-  		}, 
-  		error: (i) => { // to know when to stop learning process send a callback with represents error from input "i"
-      		const values = network.forward(inputData[i]); // forward input values and get results
-      		return network.error(outputData[i]); // get errors from last forwarding
+		// compare network "a" with network "b" for set element number "i"
+		fitness: (a, b, i) => {
+			// forward inputData through "a" network and get error for outputData
+      		const errorA = network.error(outputData[i], inputData[i], a);
+      		// forward inputData through "b" network and get error for outputData
+      		const errorB = network.error(outputData[i], inputData[i], b);
+      		// network A must be BETTER then network B
+      		return errorA < errorB;
+		},
+		// to know when to stop learning process send a callback
+		// with represents error from input "i"
+  		error: (i) => {
+  			// forward input values and get results
+      		const values = network.forward(inputData[i]);
+      		// get errors from last forwarding
+      		return network.error(outputData[i]);
   		}
-	}, 
-	{ 
+	},
+	{
 		error: 0.5, // learn process until reaching 0.5% errors
 		sync: true // function call synchronously and returns value
 	}
