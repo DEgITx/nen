@@ -28,96 +28,6 @@ void cudaFree(void* devPtr)
 }
 #endif
 
-/*
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-	int *dev_a = 0;
-	int *dev_b = 0;
-	int *dev_c = 0;
-	cudaError_t cudaStatus;
-
-	// Choose which GPU to run on, change this on a multi-GPU system.
-	cudaStatus = cudaSetDevice(0);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-		goto Error;
-	}
-
-	// Allocate GPU buffers for three vectors (two input, one output)    .
-	cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	// Copy input vectors from host memory to GPU buffers.
-	cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-	// Launch a kernel on the GPU with one thread for each element.
-	addKernel << <1, size >> >(dev_c, dev_a, dev_b);
-
-	// Check for any errors launching the kernel
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto Error;
-	}
-
-	// cudaDeviceSynchronize waits for the kernel to finish, and returns
-	// any errors encountered during the launch.
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-		goto Error;
-	}
-
-	// Copy output vector from GPU buffer to host memory.
-	cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-Error:
-	cudaFree(dev_c);
-	cudaFree(dev_a);
-	cudaFree(dev_b);
-
-	return cudaStatus;
-}
-
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-	int i = threadIdx.x;
-	c[i] = a[i] + b[i];
-}
-*/
-
 namespace NEN
 {
 
@@ -128,26 +38,56 @@ namespace NEN
 		Adam
 	};
 
+	enum ActivationFunction {
+		Sigmoid = 0,
+		TanH,
+		Identity,
+		ReLU
+	};
+
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		double transferFunction(double x)
+		double transferFunction(double x, const ActivationFunction& activation = Sigmoid)
 	{
-		return 1.0 / (1.0 + std::exp(-x));
+		switch (activation)
+		{
+		case Sigmoid:
+			return 1.0 / (1.0 + std::exp(-x));
+		case TanH:
+			return (std::exp(2 * x) - 1) / (std::exp(2 * x) + 1);
+		case Identity:
+			return x;
+		case ReLU:
+			return x > 0 ? x : 0;
+		}
+		return 0;
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		double transferFunctionDerivative(double x)
+		double transferFunctionDerivative(double x, const ActivationFunction& activation = Sigmoid)
 	{
-		return (1.0 - x) * x;
+		switch (activation)
+		{
+		case Sigmoid:
+			return (1.0 - x) * x;
+		case TanH:
+			return 1.0 - x * x;
+		case Identity:
+			return 1;
+		case ReLU:
+			return x > 0 ? 1 : 0;
+		}
+
+		return 0;
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+		void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, const ActivationFunction& activation)
 	{
 		unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
 		unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
@@ -163,38 +103,38 @@ namespace NEN
 		{
 			sum += outputs[prev_layer_offset_neuron + j] * weightes[prev_layer_weight_offset + j * neurons_size + i];
 		}
-		outputs[offset_neuron + i] = transferFunction(sum);
+		outputs[offset_neuron + i] = transferFunction(sum, activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void forwardKernelGPU(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+	__global__ void forwardKernelGPU(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, ActivationFunction activation)
 	{
 		int i = threadIdx.x;
-		forwardKernel(i, outputs, weightes, layer, inputs, outputs_size, layers, neurons);
+		forwardKernel(i, outputs, weightes, layer, inputs, outputs_size, layers, neurons, activation);
 	}
 #endif
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset)
+		void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset, const ActivationFunction& activation)
 	{
 		double delta_ = targets[i] - outputs[i + outputs_offset];
-		delta[i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[i + outputs_offset]);
+		delta[i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[i + outputs_offset], activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void calculateOutputDeltaGPU(double *outputs, double *delta, double *targets, const unsigned outputs_offset)
+	__global__ void calculateOutputDeltaGPU(double *outputs, double *delta, double *targets, const unsigned outputs_offset, ActivationFunction activation)
 	{
 		int i = threadIdx.x;
-		calculateOutputDelta(i, outputs, delta, targets, outputs_offset);
+		calculateOutputDelta(i, outputs, delta, targets, outputs_offset, activation);
 	}
 #endif
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+		void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, const ActivationFunction& activation)
 	{
 		unsigned neurons_size = neurons + 1;
 		unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
@@ -207,14 +147,14 @@ namespace NEN
 		{
 			dow += weightes[weight_offset + i * next_layer_size + n] * delta[next_layer_offset_neuron + n];
 		}
-		delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron]);
+		delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron], activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void calculateHiddensDeltaGPU(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons)
+	__global__ void calculateHiddensDeltaGPU(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, ActivationFunction activation)
 	{
 		int i = threadIdx.x;
-		calculateHiddensDelta(i, outputs, weightes, delta, layer, inputs, outputs_size, layers, neurons);
+		calculateHiddensDelta(i, outputs, weightes, delta, layer, inputs, outputs_size, layers, neurons, activation);
 	}
 #endif
 
@@ -374,7 +314,7 @@ namespace NEN
 	}
 #endif
 
-	void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, bool gpu)
+	void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, const ActivationFunction& activation, bool gpu)
 	{
 		// forward
 		for (unsigned layer = 1; layer <= layers + 1; ++layer)
@@ -383,14 +323,14 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 			if (gpu)
 			{
-				forwardKernelGPU << <1, threads >> > (neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
+				forwardKernelGPU << <1, threads >> > (neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons, activation);
 				cudaDeviceSynchronize();
 			}
 			else
 #endif
 			{
 				for (int i = 0; i < threads; ++i)
-					forwardKernel(i, neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons);
+					forwardKernel(i, neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons, activation);
 			}
 		}
 
@@ -422,6 +362,7 @@ namespace NEN
 		unsigned outputs_offset_neurons,
 
 		TrainingAlgorithm algorithm,
+		const ActivationFunction& activation,
 
 		bool gpu,
 
@@ -441,14 +382,14 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 		if (gpu)
 		{
-			calculateOutputDeltaGPU << <1, outputs >> > (neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
+			calculateOutputDeltaGPU << <1, outputs >> > (neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons, activation);
 			cudaDeviceSynchronize();
 		}
 		else
 #endif
 		{
 			for (int i = 0; i < outputs; ++i)
-				calculateOutputDelta(i, neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons);
+				calculateOutputDelta(i, neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons, activation);
 		}
 
 		// calculate hidden deltas
@@ -457,14 +398,14 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 			if (gpu)
 			{
-				calculateHiddensDeltaGPU << <1, neurons + 1 >> > (neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
+				calculateHiddensDeltaGPU << <1, neurons + 1 >> > (neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons, activation);
 				cudaDeviceSynchronize();
 			}
 			else
 #endif
 			{
 				for (int i = 0; i < neurons + 1; ++i)
-					calculateHiddensDelta(i, neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons);
+					calculateHiddensDelta(i, neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons, activation);
 			}
 		}
 
@@ -548,6 +489,7 @@ namespace NEN
 		unsigned layers;
 		unsigned neurons;
 		TrainingAlgorithm algorithm = Adam;
+		ActivationFunction activation = Sigmoid;
 
 		double* neuron_outputs;
 		double* neuron_delta;
@@ -667,7 +609,7 @@ namespace NEN
 		void forward(const std::vector<double> &i)
 		{
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
-			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, activation, gpu);
 		}
 
 		void forward(const std::vector<double> &i, double* weigths)
@@ -678,7 +620,7 @@ namespace NEN
 #endif
 
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
-			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, gpu);
+			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, activation, gpu);
 		}
 
 		std::vector<double> output() const
@@ -731,6 +673,7 @@ namespace NEN
 				outputs_offset_neurons,
 
 				algorithm,
+				activation,
 
 				gpu,
 
@@ -764,7 +707,7 @@ namespace NEN
 			{
 				iterations++;
 				memcpy(neuron_outputs, i, sizeof(double) * inputs);
-				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, gpu);
+				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, activation, gpu);
 				return backPropagate(o);
 			}
 			return 1;
@@ -904,6 +847,7 @@ namespace NEN
 			f << outputs << "\n";
 			f << layers << "\n";
 			f << neurons << "\n";
+			f << activation << "\n";
 			for (unsigned i = 0; i < neuron_weigths_size; ++i)
 				f << neuron_weigths[i] << "\n";
 			f.close();
@@ -915,7 +859,9 @@ namespace NEN
 			f.open(file);
 			if (!f.is_open())
 				return;
-			f >> inputs >> outputs >> layers >> neurons;
+			int activation_value;
+			f >> inputs >> outputs >> layers >> neurons >> activation_value;
+			activation = (ActivationFunction)activation_value;
 			free();
 			init();
 			double weight;
