@@ -85,6 +85,12 @@ train network with input and output data
 
 returns Promise by default or errors array if sync setted to true in options
 
+options:
+* sync - is synchronously call (default: false) [or return Promise]
+* error - min percent of errors until finish (default: 0 - one operation)
+* iterations - iteration limitation (full cycle) (default: 0 - unlimit)
+* iteration : Function - callback that called per full iteration cycle
+
 #### train( fitness: Function, error: Function, *options* )
 
 train using fitness function
