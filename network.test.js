@@ -46,14 +46,25 @@ test('genetic xor network', () => {
   const network = nen.NeuralNetwork(2, 1, 1, 4);
   network.setRate(0.3);
   
-  network.train(inputData, {fitness: (a, b, i) => {
+  let errors = []
+  let error = 1
+  network.train((a, b, iteration) => {
+      const i = iteration % inputData.length;
       const error1 = network.error(outputData[i], inputData[i], a);
       const error2 = network.error(outputData[i], inputData[i], b);
       return error1 < error2;
-  }, error: (i) => { 
+  }, (iteration) => {
+      const i = iteration % inputData.length;
       const values = network.forward(inputData[i]);
-      return network.error(outputData[i]);
-  }}, { error: 0.5, sync: true });
+      errors[i] = network.error(outputData[i]);
+      if(i == errors.length - 1)
+      {
+        for(const e of errors)
+          error += e
+        error /= errors.length
+      }
+      return error
+  }, { error: 0.5, sync: true })
 
   const output1 = network.forward([1, 0])[0];
   const output2 = network.forward([0, 0])[0];
@@ -64,16 +75,30 @@ test('genetic xor network', () => {
 test('async genetic xor network', async () => {
   const network = nen.NeuralNetwork(2, 1, 1, 4);
   network.setRate(0.3);
-  await network.train(inputData, {fitness: (a, b, i) => {
+
+  let errors = []
+  let error = 1
+  await network.train((a, b, iteration) => {
+      const i = iteration % inputData.length;
       const error1 = network.error(outputData[i], inputData[i], a);
       const error2 = network.error(outputData[i], inputData[i], b);
       return error1 < error2;
-  }, error: (i) => { 
+  }, (iteration) => {
+      const i = iteration % inputData.length;
       const values = network.forward(inputData[i]);
-      return network.error(outputData[i]);
-  }}, { error: 0.5 });
+      errors[i] = network.error(outputData[i]);
+      if(i == errors.length - 1)
+      {
+        for(const e of errors)
+          error += e
+        error /= errors.length
+      }
+      return error
+  }, { error: 0.5 })
+
   const output1 = network.forward([1, 0])[0];
   const output2 = network.forward([0, 0])[0];
   expect(output1).toBeGreaterThan(0.9);
   expect(output2).toBeLessThan(0.1);
 });
+

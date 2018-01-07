@@ -731,20 +731,24 @@ namespace NEN
 			const std::function<
 				std::pair<std::function<bool(double*, double*)>, 
 				std::function<double()>
-			>(unsigned long long, unsigned)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long, unsigned)>()
+			>(unsigned long long)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long)>()
 		)
 		{
 			std::vector<double> errors;
-			for (unsigned n = 0; n < i.size(); ++n)
+			if (fitness)
 			{
-				if (fitness)
-				{
-					auto ft = fitness(iterations, n);
-					errors.push_back(train(i[n], std::vector<double>(), ft.first, ft.second));
-				}
-				else
-					errors.push_back(train(i[n], o[n]));
+				auto ft = fitness(iterations);
+				std::vector<double> nil;
+				errors.push_back(train(nil, nil, ft.first, ft.second));
 			}
+			else
+			{
+				for (unsigned n = 0; n < i.size(); ++n)
+				{
+					errors.push_back(train(i[n], o[n]));
+				}
+			}
+			
 			// shuffle
 			/*
 			for (auto s = i.size() - 1; s > 0; --s)
@@ -791,7 +795,7 @@ namespace NEN
 			const std::function<
 				std::pair<std::function<bool(double*, double*)>, 
 				std::function<double()>
-			>(unsigned long long, unsigned)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long, unsigned)>()
+			>(unsigned long long)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long)>()
 		)
 		{
 			std::vector<double> errors;

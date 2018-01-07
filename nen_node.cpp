@@ -189,7 +189,7 @@ private:
 	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue();
 	  }
 
-	  if(args[0]->IsArray())
+	  if(args[0]->IsArray() || args[0]->IsFunction())
 	  {
 	  	std::vector<double> errors;
 	  	std::vector<std::vector<double>> inputs;
@@ -198,31 +198,24 @@ private:
 	  	Local<Function> fitness_error;
 	  	bool fitness_use = false;
 
-	  	if(Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+	  	if(args[0]->IsArray())
 	  	{
-	  		inputs = toVectorVector(isolate, args[0]);
-	  		if(args[1]->IsArray())
-	  			outputs = toVectorVector(isolate, args[1]);
-	  		else if(args[1]->IsObject())
-	  		{
-	  			Handle<Object> fitness_object = Handle<Object>::Cast(args[1]);
-	  			fitness = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "fitness")));
-	  			fitness_error = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "error")));
-	  			fitness_use = true;
-	  		}
+	  		if(Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+		  	{
+		  		inputs = toVectorVector(isolate, args[0]);
+		  		outputs = toVectorVector(isolate, args[1]);
+		  	}
+		  	else
+		  	{
+		  		inputs.push_back(toVector(isolate, args[0]));
+		  		outputs.push_back(toVector(isolate, args[1]));
+		  	}
 	  	}
 	  	else
 	  	{
-	  		inputs.push_back(toVector(isolate, args[0]));
-	  		if(args[1]->IsArray())
-	  			outputs.push_back(toVector(isolate, args[1]));
-	  		else if(args[1]->IsObject())
-	  		{
-	  			Handle<Object> fitness_object = Handle<Object>::Cast(args[1]);
-	  			fitness = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "fitness")));
-	  			fitness_error = Local<Function>::Cast(fitness_object->Get(String::NewFromUtf8(isolate, "error")));
-	  			fitness_use = true;
-	  		}
+  			fitness = Local<Function>::Cast(args[0]);
+  			fitness_error = Local<Function>::Cast(args[1]);
+  			fitness_use = true;
 	  	}
 
 	  	if(async)
@@ -249,9 +242,11 @@ private:
 
   			req_args->persistent = persistent;
   			req_args->network = network;
-  			req_args->inputs = toVectorVector(isolate, args[0]);
   			if(!fitness_use)
+  			{
+  				req_args->inputs = toVectorVector(isolate, args[0]);
   				req_args->outputs = toVectorVector(isolate, args[1]);
+  			}
   			req_args->error_target = error_target;
 
   			// fitness
@@ -284,27 +279,24 @@ private:
 					Local<Function> fitness = Local<Function>::New(isolate, data->fitness);
   					Local<Function> fitness_error = Local<Function>::New(isolate, data->fitness_error);
   					auto network = data->network;
-  					auto inputs = data->inputs;
   					auto context = isolate->GetCurrentContext()->Global();
-			  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network, &inputs](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
+			  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 						return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
-						[&isolate, &context, &fitness, &network, i, iteration](double* c, double* d) -> bool {
+						[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
 							Handle<Value> argv[] = { 
 								Number::New(isolate, (uintptr_t)c), 
 								Number::New(isolate, (uintptr_t)d), 
-								Number::New(isolate, i), 
 								Number::New(isolate, iteration)
 							};
-							return fitness->Call(context, 4, argv)->BooleanValue();
-						}, [&network, &context, &isolate, &fitness_error, i, iteration]() -> double {
+							return fitness->Call(context, 3, argv)->BooleanValue();
+						}, [&network, &context, &isolate, &fitness_error, iteration]() -> double {
 							Handle<Value> argv[] = { 
-								Number::New(isolate, i), 
 								Number::New(isolate, iteration)
 							};
-							return fitness_error->Call(context, 2, argv)->NumberValue();
+							return fitness_error->Call(context, 1, argv)->NumberValue();
 						});
 					};
-					data->errors = network->train(inputs, data->outputs, data->error_target, fitness_func);
+					data->errors = network->train(data->inputs, data->outputs, data->error_target, fitness_func);
 				}
 
 				v8::Local<v8::Promise::Resolver> local = v8::Local<v8::Promise::Resolver>::New(isolate, data->persistent);
@@ -321,22 +313,20 @@ private:
 	  		else
 	  		{
 	  			auto context = isolate->GetCurrentContext()->Global();
-		  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network, &inputs](unsigned long long iteration, unsigned i) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
+		  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 					return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
-					[&isolate, &context, &fitness, &network, i, iteration](double* c, double* d) -> bool {
+					[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
 						Handle<Value> argv[] = { 
 							Number::New(isolate, (uintptr_t)c), 
-							Number::New(isolate, (uintptr_t)d), 
-							Number::New(isolate, i), 
+							Number::New(isolate, (uintptr_t)d),
 							Number::New(isolate, iteration)
 						};
-						return fitness->Call(context, 4, argv)->BooleanValue();
-					}, [&network, &context, &isolate, &fitness_error, i, iteration]() -> double {
-						Handle<Value> argv[] = { 
-							Number::New(isolate, i), 
+						return fitness->Call(context, 3, argv)->BooleanValue();
+					}, [&network, &context, &isolate, &fitness_error, iteration]() -> double {
+						Handle<Value> argv[] = {
 							Number::New(isolate, iteration)
 						};
-						return fitness_error->Call(context, 2, argv)->NumberValue();
+						return fitness_error->Call(context, 1, argv)->NumberValue();
 					});
 				};
 	  			errors = network->train(inputs, outputs, error_target, fitness_func);

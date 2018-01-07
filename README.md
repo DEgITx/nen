@@ -85,7 +85,7 @@ train network with input and output data
 
 returns Promise by default or errors array if sync setted to true in options
 
-#### train( *[inputData]*, {fitness: Function, error: Function}, *options* )
+#### train( fitness: Function, error: Function, *options* )
 
 train using fitness function
 
@@ -133,39 +133,51 @@ get number of iterations from last learning process
 
 ## Fitness Function learning example
 
-Sometimes we don't know exact output values. For such cases we can compare two neural networks for best results using genetic algorithms and fitness function
+Sometimes we don't know exact input/output values, but know that neural network A better then neural network B. For such cases we can compare two neural networks for best results using genetic algorithms and fitness compare function
 
 ``` js
 network.setRate(0.3) // set learning rate
 
-const errors = network.train(
-	// input data set, contains 4 learning cases
-	inputData, 
-	{
-		// compare network "a" with network "b" for set element number "i"
-		fitness: (a, b, i) => {
-			// forward inputData through "a" network and get error for outputData
-      		const errorA = network.error(outputData[i], inputData[i], a);
-      		// forward inputData through "b" network and get error for outputData
-      		const errorB = network.error(outputData[i], inputData[i], b);
-      		// network A must be BETTER then network B
-      		return errorA < errorB;
-		},
-		// to know when to stop learning process send a callback
-		// with represents error from input "i"
-  		error: (i) => {
-  			// forward input values and get results
-      		const values = network.forward(inputData[i]);
-      		// get errors from last forwarding
-      		return network.error(outputData[i]);
-  		}
+let errors = [] // aray represents all errors of input data
+let error = 1.0 // average error of input data
+
+network.train(
+	// compare network "a" with network "b" for set element number "i"
+	(a, b, iteration) => {
+		// get input data index from current iteration
+		const i = iteration % inputData.length;
+		// forward inputData through "a" network and get error for outputData
+		const errorA = network.error(outputData[i], inputData[i], a);
+		// forward inputData through "b" network and get error for outputData
+		const errorB = network.error(outputData[i], inputData[i], b);
+		// network A must be BETTER then network B
+		return errorA < errorB;
+	}, 
+	// to know when to stop learning process send a callback
+	// with represents average error from iteration
+	(iteration) => {
+		// get input data index from current iteration
+		const i = iteration % inputData.length;
+		// forward input values and get results
+		const values = network.forward(inputData[i]);
+		// get errors from last forwarding
+		errors[i] = network.error(outputData[i]);
+		// calculate average error
+		if(i == errors.length - 1) // calucate error only on last input/output element
+		{
+			for(const e of errors)
+				error += e
+			error /= errors.length
+		}
+		// return average error to know when to stop learning process
+		return error
 	},
 	{
 		error: 0.5, // learn process until reaching 0.5% errors
-		sync: true // function call synchronously and returns value
+		sync: true // function call synchronously
 	}
 )
 
-console.log(network.forward([0, 1])) // [ 0.999999999993257 ]
-console.log(network.forward([0, 0])) // [ 9.793498051406418e-10 ]
+console.log(network.forward([0, 1])) // [ 0.9999999999942144 ]
+console.log(network.forward([0, 0])) // [ 9.965492560315975e-10 ]
 ```
