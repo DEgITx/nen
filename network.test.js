@@ -76,6 +76,7 @@ test('async genetic xor network', async () => {
   const network = nen.NeuralNetwork(2, 1, 1, 4);
   network.setRate(0.3);
 
+  let called = 0
   let errors = []
   let error = 1
   await network.train((a, b, iteration) => {
@@ -94,11 +95,41 @@ test('async genetic xor network', async () => {
         error /= errors.length
       }
       return error
-  }, { error: 0.5 })
+  }, { error: 0.5, iteration: (i, error) => {
+    called++;
+  } })
 
   const output1 = network.forward([1, 0])[0];
   const output2 = network.forward([0, 0])[0];
   expect(output1).toBeGreaterThan(0.9);
   expect(output2).toBeLessThan(0.1);
+  expect(called).toBeGreaterThan(0);
 });
 
+test('iteration callback test sync', () => {
+  const network = nen.NeuralNetwork(2, 1, 1, 4);
+  network.setRate(0.2);
+  let called = 0;
+  network.train(inputData, outputData, { error: 0.5, sync: true, iteration: (i, error) => {
+    called++;
+  }});
+  expect(called).toBe(network.iterations() / 4);
+});
+
+test('iteration callback test async', async () => {
+  const network = nen.NeuralNetwork(2, 1, 1, 4);
+  network.setRate(0.2);
+  let called = 0;
+  await network.train(inputData, outputData, { error: 0.5, sync: false, iteration: (i, error) => {
+    called++;
+  }});
+  expect(called).toBe(network.iterations() / 4);
+  expect(called).toBeGreaterThan(0);
+});
+
+test('limit iterations', () => {
+  const network = nen.NeuralNetwork(2, 1, 4, 8);
+  network.setRate(0.02);
+  network.train(inputData, outputData, { error: 0.5, sync: true, iterations: 7 });
+  expect(network.iterations()).toBe(7 * 4);
+});

@@ -521,6 +521,8 @@ namespace NEN
 		std::vector<std::vector<double>> train_data_outputs;
 		std::string auto_save_file;
 		unsigned long long iterations = 0;
+		unsigned long long iterations_limit = 0;
+		std::function<void(unsigned long long, double)> iteration_callback;
 
 		std::vector<double*> genetic_population;
 		std::unordered_set<double*> genetic_population_allowed;
@@ -703,7 +705,10 @@ namespace NEN
 			if (fitness)
 			{
 				genetic(fitness);
-				return error_check();
+				double err = error_check();
+				if (iteration_callback)
+					iteration_callback(iterations, err);
+				return err;
 			}
 			else
 			{
@@ -798,11 +803,16 @@ namespace NEN
 			>(unsigned long long)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long)>()
 		)
 		{
+			unsigned long long real_iterations = 0;
 			std::vector<double> errors;
 			do {
 				errors = train(i, o, fitness);
+				real_iterations++;
 			} while (([&]() {
 				if (error_ == 0)
+					return false;
+
+				if (iterations_limit > 0 && real_iterations >= iterations_limit)
 					return false;
 
 				double errorAvrg = 0;
@@ -811,6 +821,10 @@ namespace NEN
 					errorAvrg += error;
 				}
 				errorAvrg /= errors.size();
+
+				if (iteration_callback && !fitness)
+					iteration_callback(iterations, errorAvrg);
+
 				if (errorAvrg * 100 > error_)
 					return true;
 

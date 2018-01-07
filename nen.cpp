@@ -118,7 +118,7 @@ int main()
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
 
-
+//#if 0
 	double error = 1;
 	auto start = std::chrono::high_resolution_clock::now();
 	unsigned itlimit = 10000;
@@ -174,6 +174,9 @@ int main()
 	auto start = std::chrono::high_resolution_clock::now();
 	double e = 1;
 	std::vector<double> errs = {1, 1, 1, 1};
+	n.iteration_callback = [](unsigned long long it, double rr) {
+		printf("\n");
+	};
 	auto fitness = [&n, &a, &b, &errs, &e](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 		unsigned i = iteration % a.size();
 		std::vector<double> input = a[i];
@@ -199,6 +202,7 @@ int main()
 			return e;
 		});
 	};
+	//n.iterations_limit = 100;
 	n.train(a, b, 0.5, fitness);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();

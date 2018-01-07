@@ -181,12 +181,21 @@ private:
 
 	  bool async = true;
 	  double error_target = 0;
+	  Local<Function> iteration_callback;
+	  bool iteration_callback_use = false;
 
 	  if(!args[2]->IsUndefined() && args[2]->IsObject())
 	  {
 	  	Handle<Object> options = Handle<Object>::Cast(args[2]);
 	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
 	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue();
+	  	network->iterations_limit = (unsigned long long)options->Get(String::NewFromUtf8(isolate, "iterations"))->NumberValue();
+	  	if(options->Get(String::NewFromUtf8(isolate, "iteration"))->IsFunction())
+	  	{
+	  		iteration_callback = Local<Function>::Cast(options->Get(String::NewFromUtf8(isolate, "iteration")));
+	  		iteration_callback_use = true;
+	  	}
+	  	
 	  }
 
 	  if(args[0]->IsArray() || args[0]->IsFunction())
@@ -237,6 +246,8 @@ private:
 				Persistent<Function, CopyablePersistentTraits<Function>> fitness;
 				Persistent<Function, CopyablePersistentTraits<Function>> fitness_error;
 				bool fitness_use = false;
+				Persistent<Function, CopyablePersistentTraits<Function>> iteration_callback;
+				bool iteration_callback_use = false;
 			}* req_args = new ReqArgs;
 			req->data = req_args;
 
@@ -263,16 +274,40 @@ private:
   				req_args->fitness_use = true;
   			}
 
+  			if(iteration_callback_use)
+  			{
+  				Persistent<Function, CopyablePersistentTraits<Function>> persistent_iteration_callback;
+  				persistent_iteration_callback.Reset(isolate, iteration_callback);
+  				req_args->iteration_callback = persistent_iteration_callback;
+
+  				req_args->iteration_callback_use = true;
+  			}
+
   			uv_queue_work(uv_default_loop(), req, [](uv_work_t *req)
   			{
   				ReqArgs* data = (ReqArgs*)req->data;
-  				if(!data->fitness_use)
+  				if(!data->fitness_use && !data->iteration_callback_use)
   					data->errors = data->network->train(data->inputs, data->outputs, data->error_target);
   			}, [](uv_work_t *req, int status)
 			{
 				ReqArgs* data = (ReqArgs*)req->data;
 				v8::Isolate* isolate = v8::Isolate::GetCurrent();
 				v8::HandleScope scope(isolate);
+
+				Local<Function> iteration_callback;
+				if(data->iteration_callback_use)
+				{
+					auto context = isolate->GetCurrentContext()->Global();
+					iteration_callback = Local<Function>::New(isolate, data->iteration_callback);
+					data->network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
+		  			{
+		  				Handle<Value> argv[] = {
+							Number::New(isolate, iteration),
+							Number::New(isolate, error)
+						};
+						iteration_callback->Call(context, 2, argv);
+		  			};
+				}
 
 				if(data->fitness_use)
 				{
@@ -298,6 +333,10 @@ private:
 					};
 					data->errors = network->train(data->inputs, data->outputs, data->error_target, fitness_func);
 				}
+				else if(data->iteration_callback_use)
+				{
+					data->errors = data->network->train(data->inputs, data->outputs, data->error_target);
+				}
 
 				v8::Local<v8::Promise::Resolver> local = v8::Local<v8::Promise::Resolver>::New(isolate, data->persistent);
 				local->Resolve(toArray(isolate, data->errors));
@@ -308,6 +347,19 @@ private:
 	  	}
 	  	else
 	  	{
+	  		if(iteration_callback_use)
+	  		{
+	  			auto context = isolate->GetCurrentContext()->Global();
+	  			network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
+	  			{
+	  				Handle<Value> argv[] = {
+						Number::New(isolate, iteration),
+						Number::New(isolate, error)
+					};
+					iteration_callback->Call(context, 2, argv);
+	  			};
+	  		}
+
 			if(!fitness_use)
 	  			errors = network->train(inputs, outputs, error_target);
 	  		else
