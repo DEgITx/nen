@@ -163,6 +163,33 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
+	double fastPow(double a, double b) {
+		// calculate approximation with fraction of the exponent
+		int e = (int)b;
+		union {
+			double d;
+			int x[2];
+		} u = { a };
+		u.x[1] = (int)((b - e) * (u.x[1] - 1072632447) + 1072632447);
+		u.x[0] = 0;
+
+		// exponentiation by squaring with the exponent's integer part
+		// double r = u.d makes everything much slower, not sure why
+		double r = 1.0;
+		while (e) {
+			if (e & 1) {
+				r *= a;
+			}
+			a *= a;
+			e >>= 1;
+		}
+
+		return r * u.d;
+	}
+
+#if defined(__NVCC__) || defined(__CUDACC__)
+	__host__ __device__
+#endif
 		void updateInputWeights(
 			int i,
 
@@ -241,8 +268,8 @@ namespace NEN
 				m = beta1 * m + (1 - beta1) * gradient;
 				v = beta2 * v + (1 - beta2) * gradient * gradient;
 
-				double mt = m / (1 - pow(beta1, t));
-				double mv = v / (1 - pow(beta2, t));
+				double mt = m / (1 - fastPow(beta1, t));
+				double mv = v / (1 - fastPow(beta2, t));
 				t++;
 
 				newDeltaWeight = rate * mt / sqrt(mv + d_epsilon);
