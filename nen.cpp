@@ -4,10 +4,11 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 2, 8);
+	NEN::NeuronNetwork n(2, 1, 2, 12, NEN::Adam);
 	//n.rate = 0.1;
-	n.rate = 0.02;
-	//n.activation = NEN::TanH;
+	n.rate = 0.05;
+	//n.d_epsilon = 0.000000001;
+	n.activation = NEN::TanH;
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	

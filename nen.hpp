@@ -540,7 +540,7 @@ namespace NEN
 		double momentum = 0.3;
 		double beta1 = 0.9;
 		double beta2 = 0.999;
-		double d_epsilon = 0.000000001;
+		double d_epsilon = 0.00000000001;
 
 		bool gpu = false;
 

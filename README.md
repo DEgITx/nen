@@ -136,6 +136,29 @@ forward input data through the network and return errors
 
 get number of iterations from last learning process
 
+### setMoment( *moment* )
+
+set moment factor
+
+default: 0.3
+
+### setDEpsilon( *dEspsilon* )
+
+set divider epsilon
+
+default: 10^-11
+
+### setPopulation( *populationSize* )
+
+population size for genetic algorithm
+
+default: 10
+
+### setElitePart( *populationPart* )
+
+population part as elite part
+
+default: 3 (means 1/3 of population)
 
 ## Fitness Function learning example
 

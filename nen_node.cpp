@@ -44,6 +44,12 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setActivation", setActivation);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setMoment", setMoment);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setDEpsilon", setDEpsilon);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setBeta1", setBeta1);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setBeta2", setBeta2);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setPopulation", setPopulation);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setElitePart", setElitePart);
 	}
 private:
 	static v8::Persistent<v8::Function> constructor;
@@ -417,6 +423,48 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  network->activation = (NEN::ActivationFunction)((int)args[0]->NumberValue());
+	}
+
+	static void setMoment(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->momentum = args[0]->NumberValue();
+	}
+
+	static void setDEpsilon(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->d_epsilon = args[0]->NumberValue();
+	}
+
+	static void setBeta1(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->beta1 = args[0]->NumberValue();
+	}
+
+	static void setBeta2(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->beta2 = args[0]->NumberValue();
+	}
+
+	static void setPopulation(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->genetic_population_size = args[0]->NumberValue();
+	}
+
+	static void setElitePart(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->genetic_elite_part = args[0]->NumberValue();
 	}
 };
 
