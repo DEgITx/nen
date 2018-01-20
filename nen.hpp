@@ -775,6 +775,7 @@ namespace NEN
 			}
 			else
 			{
+				errors.reserve(i.size());
 				for (unsigned n = 0; n < i.size(); ++n)
 				{
 					errors.push_back(train(i[n], o[n]));
