@@ -270,18 +270,18 @@ namespace NEN
 		)
 	{
 		unsigned current_layer_neurons_size = layer == layers + 1 ? outputs_size : neurons;
-		unsigned current_layer_offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
+		unsigned current_layer_offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1) + threadId * neurons_size;
 		unsigned prev_layer_size = (layer == 1 ? inputs : neurons) + 1;
 		unsigned prev_layer_offset_neuron = current_layer_offset_neuron - prev_layer_size;
-		unsigned prev_layer_weight_offset = (layer == 1 ? 0 : (inputs + 1) * neurons);
+		unsigned prev_layer_weight_offset = (layer == 1 ? 0 : (inputs + 1) * neurons) + threadId * neuron_weigths_size;
 		if (layer > 1)
 			prev_layer_weight_offset += (neurons + 1) * neurons * (layer - 2);
 
 		for (unsigned j = 0; j < prev_layer_size; ++j)
 		{
 			unsigned prev_layer_weight_index = prev_layer_weight_offset + j * current_layer_neurons_size + i;
-			double oldDeltaWeight = delta_weight[threadId * neuron_weigths_size + prev_layer_weight_index];
-			double gradient = outputs[threadId * neurons_size + prev_layer_offset_neuron + j] * delta[threadId * neurons_size + current_layer_offset_neuron + i];
+			double oldDeltaWeight = delta_weight[prev_layer_weight_index];
+			double gradient = outputs[prev_layer_offset_neuron + j] * delta[current_layer_offset_neuron + i];
 			double newDeltaWeight;
 
 			switch (algorithm)
@@ -294,7 +294,7 @@ namespace NEN
 			}
 			case Adagrad:
 			{
-				double& e = algorithm_e[threadId * neuron_weigths_size + prev_layer_weight_index];
+				double& e = algorithm_e[prev_layer_weight_index];
 
 				e = e + gradient * gradient;
 				newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
@@ -303,7 +303,7 @@ namespace NEN
 			}
 			case RMSProp:
 			{
-				double& e = algorithm_e[threadId * neuron_weigths_size + prev_layer_weight_index];
+				double& e = algorithm_e[prev_layer_weight_index];
 
 				e = momentum * e + (1 - momentum) * gradient * gradient;
 				newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
@@ -312,9 +312,9 @@ namespace NEN
 			}
 			case Adam:
 			{
-				double& m = algorithm_m[threadId * neuron_weigths_size + prev_layer_weight_index];
-				double& v = algorithm_v[threadId * neuron_weigths_size + prev_layer_weight_index];
-				double& t = algorithm_t[threadId * neuron_weigths_size + prev_layer_weight_index];
+				double& m = algorithm_m[prev_layer_weight_index];
+				double& v = algorithm_v[prev_layer_weight_index];
+				double& t = algorithm_t[prev_layer_weight_index];
 
 				m = beta1 * m + (1 - beta1) * gradient;
 				v = beta2 * v + (1 - beta2) * gradient * gradient;
@@ -331,7 +331,7 @@ namespace NEN
 				break;
 			}
 
-			delta_weight[threadId * neuron_weigths_size + prev_layer_weight_index] = newDeltaWeight;
+			delta_weight[prev_layer_weight_index] = newDeltaWeight;
 			//weightes[prev_layer_weight_index] += newDeltaWeight;
 		}
 	}
