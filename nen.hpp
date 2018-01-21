@@ -16,6 +16,7 @@
 #include <functional>
 #include <algorithm>
 #include <unordered_set>
+#include <omp.h>
 
 #if !defined(__NVCC__) && !defined(__CUDACC__)
 template<typename Type>
@@ -89,12 +90,28 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void forwardKernel(int i, double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, const ActivationFunction& activation)
+	void forwardKernel(
+		int i, 
+		
+		double *outputs, 
+		double *weightes, 
+		
+		const unsigned layer, 
+		const unsigned inputs, 
+		const unsigned outputs_size,
+		const unsigned layers, 
+		const unsigned neurons, 
+		
+		const unsigned neurons_size,
+
+		const ActivationFunction& activation,
+		const unsigned threadId = 0
+	)
 	{
-		unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
-		unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
+		unsigned current_layer_neurons_size = layer == layers + 1 ? outputs_size : neurons;
+		unsigned current_layer_offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
 		unsigned prev_layer_size = (layer == 1 ? inputs : neurons) + 1;
-		unsigned prev_layer_offset_neuron = offset_neuron - prev_layer_size;
+		unsigned prev_layer_offset_neuron = current_layer_offset_neuron - prev_layer_size;
 		unsigned prev_layer_weight_offset = (layer == 1 ? 0 : (inputs + 1) * neurons);
 		if (layer > 1)
 			prev_layer_weight_offset += (neurons + 1) * neurons * (layer - 2);
@@ -103,9 +120,9 @@ namespace NEN
 		double sum = 0;
 		for (unsigned j = 0; j < prev_layer_size; ++j)
 		{
-			sum += outputs[prev_layer_offset_neuron + j] * weightes[prev_layer_weight_offset + j * neurons_size + i];
+			sum += outputs[threadId * neurons_size + prev_layer_offset_neuron + j] * weightes[prev_layer_weight_offset + j * current_layer_neurons_size + i];
 		}
-		outputs[offset_neuron + i] = transferFunction(sum, activation);
+		outputs[threadId * neurons_size + current_layer_offset_neuron + i] = transferFunction(sum, activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
@@ -119,10 +136,23 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void calculateOutputDelta(int i, double *outputs, double *delta, double *targets, const unsigned outputs_offset, const ActivationFunction& activation)
+	void calculateOutputDelta(
+		int i, 
+
+		double *outputs, 
+		double *delta, 
+		double *targets,
+
+		const unsigned outputs_offset, 
+		const unsigned outputs_size,
+		const unsigned neurons_size,
+		
+		const ActivationFunction& activation,
+		const unsigned threadId = 0
+	)
 	{
-		double delta_ = targets[i] - outputs[i + outputs_offset];
-		delta[i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[i + outputs_offset], activation);
+		double delta_ = targets[threadId * outputs_size + i] - outputs[threadId * neurons_size + i + outputs_offset];
+		delta[threadId * neurons_size + i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[threadId * neurons_size + i + outputs_offset], activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
@@ -136,20 +166,37 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
-		void calculateHiddensDelta(int i, double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, const ActivationFunction& activation)
+	void calculateHiddensDelta(
+		int i, 
+		
+		double *outputs,
+		double *weightes, 
+		double *delta, 
+		
+		const unsigned layer, 
+		const unsigned inputs, 
+		const unsigned outputs_size, 
+		const unsigned layers,
+		const unsigned neurons,
+
+		const unsigned neurons_size,
+		
+		const ActivationFunction& activation,
+		const unsigned threadId = 0
+	)
 	{
-		unsigned neurons_size = neurons + 1;
-		unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
-		unsigned weight_offset = (inputs + 1) * neurons + (neurons + 1) * neurons * (layer - 1);
+		unsigned current_layer_neurons_size = neurons + 1;
+		unsigned current_layer_offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
+		unsigned current_layer_weight_offset = (inputs + 1) * neurons + (neurons + 1) * neurons * (layer - 1);
 		unsigned next_layer_size = (layer == layers ? outputs_size : neurons);
-		unsigned next_layer_offset_neuron = offset_neuron + neurons_size;
+		unsigned next_layer_offset_neuron = current_layer_offset_neuron + current_layer_neurons_size;
 
 		double dow = 0.;
 		for (unsigned n = 0; n < next_layer_size; ++n)
 		{
-			dow += weightes[weight_offset + i * next_layer_size + n] * delta[next_layer_offset_neuron + n];
+			dow += weightes[current_layer_weight_offset + i * next_layer_size + n] * delta[threadId * neurons_size + next_layer_offset_neuron + n];
 		}
-		delta[i + offset_neuron] = dow * transferFunctionDerivative(outputs[i + offset_neuron], activation);
+		delta[threadId * neurons_size + i + current_layer_offset_neuron] = dow * transferFunctionDerivative(outputs[threadId * neurons_size + i + current_layer_offset_neuron], activation);
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
@@ -203,6 +250,8 @@ namespace NEN
 			const unsigned outputs_size,
 			const unsigned layers,
 			const unsigned neurons,
+			const unsigned neurons_size,
+			const unsigned neuron_weigths_size,
 
 			TrainingAlgorithm algorithm,
 
@@ -215,22 +264,24 @@ namespace NEN
 			double momentum = 0.3,
 			double beta1 = 0.9,
 			double beta2 = 0.999,
-			double d_epsilon = 0.000000001
+			double d_epsilon = 0.000000001,
+
+			const unsigned threadId = 0
 		)
 	{
-		unsigned neurons_size = layer == layers + 1 ? outputs_size : neurons;
-		unsigned offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
+		unsigned current_layer_neurons_size = layer == layers + 1 ? outputs_size : neurons;
+		unsigned current_layer_offset_neuron = inputs + 1 + (layer - 1) * (neurons + 1);
 		unsigned prev_layer_size = (layer == 1 ? inputs : neurons) + 1;
-		unsigned prev_layer_offset_neuron = offset_neuron - prev_layer_size;
+		unsigned prev_layer_offset_neuron = current_layer_offset_neuron - prev_layer_size;
 		unsigned prev_layer_weight_offset = (layer == 1 ? 0 : (inputs + 1) * neurons);
 		if (layer > 1)
 			prev_layer_weight_offset += (neurons + 1) * neurons * (layer - 2);
 
 		for (unsigned j = 0; j < prev_layer_size; ++j)
 		{
-			unsigned prev_layer_weight_index = prev_layer_weight_offset + j * neurons_size + i;
-			double oldDeltaWeight = delta_weight[prev_layer_weight_index];
-			double gradient = outputs[prev_layer_offset_neuron + j] * delta[offset_neuron + i];
+			unsigned prev_layer_weight_index = prev_layer_weight_offset + j * current_layer_neurons_size + i;
+			double oldDeltaWeight = delta_weight[threadId * neuron_weigths_size + prev_layer_weight_index];
+			double gradient = outputs[threadId * neurons_size + prev_layer_offset_neuron + j] * delta[threadId * neurons_size + current_layer_offset_neuron + i];
 			double newDeltaWeight;
 
 			switch (algorithm)
@@ -243,7 +294,7 @@ namespace NEN
 			}
 			case Adagrad:
 			{
-				double& e = algorithm_e[prev_layer_weight_index];
+				double& e = algorithm_e[threadId * neuron_weigths_size + prev_layer_weight_index];
 
 				e = e + gradient * gradient;
 				newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
@@ -252,7 +303,7 @@ namespace NEN
 			}
 			case RMSProp:
 			{
-				double& e = algorithm_e[prev_layer_weight_index];
+				double& e = algorithm_e[threadId * neuron_weigths_size + prev_layer_weight_index];
 
 				e = momentum * e + (1 - momentum) * gradient * gradient;
 				newDeltaWeight = rate * gradient / sqrt(e + d_epsilon);
@@ -261,9 +312,9 @@ namespace NEN
 			}
 			case Adam:
 			{
-				double& m = algorithm_m[prev_layer_weight_index];
-				double& v = algorithm_v[prev_layer_weight_index];
-				double& t = algorithm_t[prev_layer_weight_index];
+				double& m = algorithm_m[threadId * neuron_weigths_size + prev_layer_weight_index];
+				double& v = algorithm_v[threadId * neuron_weigths_size + prev_layer_weight_index];
+				double& t = algorithm_t[threadId * neuron_weigths_size + prev_layer_weight_index];
 
 				m = beta1 * m + (1 - beta1) * gradient;
 				v = beta2 * v + (1 - beta2) * gradient * gradient;
@@ -280,8 +331,8 @@ namespace NEN
 				break;
 			}
 
-			delta_weight[prev_layer_weight_index] = newDeltaWeight;
-			weightes[prev_layer_weight_index] += newDeltaWeight;
+			delta_weight[threadId * neuron_weigths_size + prev_layer_weight_index] = newDeltaWeight;
+			//weightes[prev_layer_weight_index] += newDeltaWeight;
 		}
 	}
 
@@ -343,7 +394,22 @@ namespace NEN
 	}
 #endif
 
-	void forwardInput(double* neuron_outputs, double* neuron_weigths, unsigned inputs, unsigned outputs, unsigned layers, unsigned neurons, const ActivationFunction& activation, bool gpu)
+	void forwardInput(
+		double* neuron_outputs, 
+		double* neuron_weigths, 
+		
+		unsigned inputs, 
+		unsigned outputs, 
+		unsigned layers, 
+		unsigned neurons, 
+
+		unsigned neurons_size,
+		
+		const ActivationFunction& activation, 
+		bool gpu,
+
+		unsigned threadId = 0
+	)
 	{
 		// forward
 		for (unsigned layer = 1; layer <= layers + 1; ++layer)
@@ -352,25 +418,63 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 			if (gpu)
 			{
-				forwardKernelGPU << <1, threads >> > (neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons, activation);
+				forwardKernelGPU << <1, threads >> > (
+					neuron_outputs, 
+					neuron_weigths, 
+					
+					layer, 
+					inputs, 
+					outputs, 
+					layers, 
+					neurons, 
+
+					neurons_size,
+					
+					activation
+				);
 				cudaDeviceSynchronize();
 			}
 			else
 #endif
 			{
 				for (int i = 0; i < threads; ++i)
-					forwardKernel(i, neuron_outputs, neuron_weigths, layer, inputs, outputs, layers, neurons, activation);
+					forwardKernel(
+						i, 
+						
+						neuron_outputs, 
+						neuron_weigths, 
+						
+						layer, 
+						inputs, 
+						outputs, 
+						layers, 
+						neurons, 
+						
+						neurons_size,
+
+						activation,
+						threadId
+					);
 			}
 		}
 
 	}
 
-	double error(double* neuron_outputs, double* neuron_targets, unsigned outputs, unsigned outputs_offset_neurons)
+	double error(
+		double* neuron_outputs,
+		double* neuron_targets, 
+		
+		unsigned outputs, 
+		unsigned outputs_offset_neurons, 
+		const unsigned neurons_size,
+		
+		unsigned threadId = 0
+	)
 	{
 		double error = 0.0;
 		for (unsigned i = 0; i < outputs; ++i)
 		{
-			double delta = neuron_targets[i] - neuron_outputs[outputs_offset_neurons + i];
+			double delta = neuron_targets[threadId * outputs + i] - neuron_outputs[threadId * neurons_size + outputs_offset_neurons + i];
 			error += delta * delta;
 		}
 		error /= outputs;
@@ -389,6 +493,8 @@ namespace NEN
 		unsigned layers,
 		unsigned neurons,
 		unsigned outputs_offset_neurons,
+		unsigned neurons_size,
+		unsigned neuron_weigths_size,
 
 		TrainingAlgorithm algorithm,
 		const ActivationFunction& activation,
@@ -404,21 +510,46 @@ namespace NEN
 		double momentum,
 		double beta1,
 		double beta2,
-		double d_epsilon
+		double d_epsilon,
+
+		unsigned threadId = 0
 	)
 	{
 		// calculate output delta
 #if defined(__NVCC__) || defined(__CUDACC__)
 		if (gpu)
 		{
-			calculateOutputDeltaGPU << <1, outputs >> > (neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons, activation);
+			calculateOutputDeltaGPU << <1, outputs >> > (
+				neuron_outputs, 
+				neuron_delta, 
+				neuron_targets,
+				
+				outputs_offset_neurons,
+				outputs,
+				neurons_size,
+				
+				activation
+			);
 			cudaDeviceSynchronize();
 		}
 		else
 #endif
 		{
 			for (int i = 0; i < outputs; ++i)
-				calculateOutputDelta(i, neuron_outputs, neuron_delta, neuron_targets, outputs_offset_neurons, activation);
+				calculateOutputDelta(
+					i, 
+					
+					neuron_outputs, 
+					neuron_delta, 
+					neuron_targets, 
+					
+					outputs_offset_neurons,
+					outputs,
+					neurons_size,
+
+					activation,
+					threadId
+				);
 		}
 
 		// calculate hidden deltas
@@ -427,14 +558,45 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 			if (gpu)
 			{
-				calculateHiddensDeltaGPU << <1, neurons + 1 >> > (neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons, activation);
+				calculateHiddensDeltaGPU << <1, neurons + 1 >> > (
+					neuron_outputs, 
+					neuron_weigths, 
+					neuron_delta, 
+					
+					layer, 
+					inputs, 
+					outputs, 
+					layers, 
+					neurons, 
+
+					neurons_size,
+					
+					activation
+				);
 				cudaDeviceSynchronize();
 			}
 			else
 #endif
 			{
 				for (int i = 0; i < neurons + 1; ++i)
-					calculateHiddensDelta(i, neuron_outputs, neuron_weigths, neuron_delta, layer, inputs, outputs, layers, neurons, activation);
+					calculateHiddensDelta(
+						i, 
+						
+						neuron_outputs, 
+						neuron_weigths, 
+						neuron_delta, 
+						
+						layer, 
+						inputs, 
+						outputs, 
+						layers, 
+						neurons,
+
+						neurons_size,
+						
+						activation,
+						threadId
+					);
 			}
 		}
 
@@ -456,6 +618,8 @@ namespace NEN
 					outputs,
 					layers,
 					neurons,
+					neurons_size,
+					neuron_weigths_size,
 
 					algorithm,
 
@@ -490,6 +654,8 @@ namespace NEN
 						outputs,
 						layers,
 						neurons,
+						neurons_size,
+						neuron_weigths_size,
 
 						algorithm,
 
@@ -502,7 +668,9 @@ namespace NEN
 						momentum,
 						beta1,
 						beta2,
-						d_epsilon
+						d_epsilon,
+
+						threadId
 					);
 				}
 			}
@@ -513,6 +681,8 @@ namespace NEN
 
 	struct NeuronNetwork
 	{
+		int threads = 1;
+
 		unsigned inputs;
 		unsigned outputs;
 		unsigned layers;
@@ -572,33 +742,45 @@ namespace NEN
 
 		void init()
 		{
+			omp_set_num_threads(1);
+
+			threads = omp_get_max_threads();
+			if (threads <= 0)
+				threads = 1;
+
 			neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 			hidden_offset_neurons = inputs + 1;
 			outputs_offset_neurons = hidden_offset_neurons + (neurons + 1) * layers;
 			neuron_weigths_size = ((neurons + 1) * neurons) * (layers - 1) + ((inputs + 1) * neurons) + (outputs * (neurons + 1));
 
-			cudaMallocManaged(&neuron_outputs, neurons_size * sizeof(double));
-			cudaMallocManaged(&neuron_delta, neurons_size * sizeof(double));
+			cudaMallocManaged(&neuron_outputs, neurons_size * sizeof(double) * threads);
+			cudaMallocManaged(&neuron_delta, neurons_size * sizeof(double) * threads);
 			cudaMallocManaged(&neuron_weigths, neuron_weigths_size * sizeof(double));
-			cudaMallocManaged(&neuron_delta_weight, neuron_weigths_size * sizeof(double));
-			cudaMallocManaged(&neuron_targets, outputs * sizeof(double));
-			cudaMallocManaged(&algorithm_e, neuron_weigths_size * sizeof(double));
-			cudaMallocManaged(&algorithm_m, neuron_weigths_size * sizeof(double));
-			cudaMallocManaged(&algorithm_v, neuron_weigths_size * sizeof(double));
-			cudaMallocManaged(&algorithm_t, neuron_weigths_size * sizeof(double));
+			cudaMallocManaged(&neuron_delta_weight, neuron_weigths_size * sizeof(double) * threads);
+			cudaMallocManaged(&neuron_targets, outputs * sizeof(double) * threads);
+			cudaMallocManaged(&algorithm_e, neuron_weigths_size * sizeof(double) * threads);
+			cudaMallocManaged(&algorithm_m, neuron_weigths_size * sizeof(double) * threads);
+			cudaMallocManaged(&algorithm_v, neuron_weigths_size * sizeof(double) * threads);
+			cudaMallocManaged(&algorithm_t, neuron_weigths_size * sizeof(double) * threads);
 
 			// bias neurons
-			for (unsigned layer = 0, i = 0; layer < layers + 1; ++layer)
+			for (int j = 0; j < threads; j++)
 			{
-				unsigned layer_size = layer == 0 ? inputs + 1 : neurons + 1;
-				i += layer_size;
-				neuron_outputs[i - 1] = 1;
+				for (unsigned layer = 0, i = 0; layer < layers + 1; ++layer)
+				{
+					unsigned layer_size = layer == 0 ? inputs + 1 : neurons + 1;
+					i += layer_size;
+					neuron_outputs[j * neurons_size + i - 1] = 1;
+				}
 			}
 
 			// first t = 1
-			for (unsigned i = 0; i < neuron_weigths_size; ++i)
+			for (int j = 0; j < threads; j++)
 			{
-				algorithm_t[i] = 1;
+				for (unsigned i = 0; i < neuron_weigths_size; ++i)
+				{
+					algorithm_t[j * neuron_weigths_size + i] = 1;
+				}
 			}
 
 			// random weightes
@@ -640,7 +822,7 @@ namespace NEN
 		void forward(const std::vector<double> &i)
 		{
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
-			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, activation, gpu);
+			forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, neurons_size, activation, gpu);
 		}
 
 		void forward(const std::vector<double> &i, double* weigths)
@@ -651,7 +833,7 @@ namespace NEN
 #endif
 
 			memcpy(neuron_outputs, i.data(), sizeof(double) * inputs);
-			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, activation, gpu);
+			forwardInput(neuron_outputs, weigths, inputs, outputs, layers, neurons, neurons_size, activation, gpu);
 		}
 
 		std::vector<double> output() const
@@ -673,7 +855,7 @@ namespace NEN
 		double getError(const double* o)
 		{
 			memcpy(neuron_targets, o, sizeof(double) * outputs);
-			return error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+			return error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons, neurons_size);
 		}
 
 		double getError(const std::vector<double>& o)
@@ -681,15 +863,15 @@ namespace NEN
 			return getError(o.data());
 		}
 
-		double backPropagate(const std::vector<double>& o)
+		double backPropagate(const std::vector<double>& o, unsigned threadId = 0)
 		{
-			return backPropagate(o.data());
+			return backPropagate(o.data(), threadId);
 		}
 
-		double backPropagate(const double* o)
+		double backPropagate(const double* o, unsigned threadId = 0)
 		{
-			memcpy(neuron_targets, o, sizeof(double) * outputs);
-			double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons);
+			memcpy(neuron_targets + threadId * outputs, o, sizeof(double) * outputs);
+			double err = error(neuron_outputs, neuron_targets, outputs, outputs_offset_neurons, neurons_size, threadId);
 			backPropagation(
 				neuron_outputs,
 				neuron_weigths,
@@ -702,6 +884,8 @@ namespace NEN
 				layers,
 				neurons,
 				outputs_offset_neurons,
+				neurons_size,
+				neuron_weigths_size,
 
 				algorithm,
 				activation,
@@ -717,7 +901,9 @@ namespace NEN
 				momentum,
 				beta1,
 				beta2,
-				d_epsilon
+				d_epsilon,
+
+				threadId
 			);
 			return err;
 		}
@@ -726,7 +912,8 @@ namespace NEN
 			const double* i, 
 			const double* o, 
 			const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>(), 
-			const std::function<double()>& error_check = std::function<double()>()
+			const std::function<double()>& error_check = std::function<double()>(),
+			unsigned threadId = 0
 		)
 		{
 			if (fitness)
@@ -740,9 +927,9 @@ namespace NEN
 			else
 			{
 				iterations++;
-				memcpy(neuron_outputs, i, sizeof(double) * inputs);
-				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, activation, gpu);
-				return backPropagate(o);
+				memcpy(neuron_outputs + threadId * neurons_size, i, sizeof(double) * inputs);
+				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, neurons_size, activation, gpu, threadId);
+				return backPropagate(o, threadId);
 			}
 			return 1;
 		}
@@ -751,10 +938,11 @@ namespace NEN
 			const std::vector<double>& i, 
 			const std::vector<double>& o, 
 			const std::function<bool(double*, double*)>& fitness = std::function<bool(double*, double*)>(), 
-			const std::function<double()>& error_check = std::function<double()>()
+			const std::function<double()>& error_check = std::function<double()>(),
+			unsigned threadId = 0
 		)
 		{
-			return train(i.data(), o.data(), fitness, error_check);
+			return train(i.data(), o.data(), fitness, error_check, threadId);
 		}
 
 		std::vector<double> train(
@@ -775,10 +963,37 @@ namespace NEN
 			}
 			else
 			{
-				errors.reserve(i.size());
-				for (unsigned n = 0; n < i.size(); ++n)
+				size_t inputs_size = i.size();
+				errors.resize(inputs_size);
+				for (int j = 0; j < (int)ceil((double)inputs_size / threads); ++j)
 				{
-					errors.push_back(train(i[n], o[n]));
+#pragma omp parallel for
+					for (int t = 0; t < threads; ++t)
+					{
+						int tid = omp_get_thread_num();
+						unsigned n = j * threads + t;
+						if(n >= inputs_size)
+							break;
+
+						errors[n] = train(i[n], o[n], std::function<bool(double*, double*)>(), std::function<double()>(), tid);
+						
+						//#pragma omp critical
+						//{
+						//	for (int j = 0; j < neuron_weigths_size; j++)
+						//		neuron_weigths[j] += neuron_delta_weight[tid * neuron_weigths_size + j];
+						//}
+					}
+
+					for (int i = 0; i < threads; i++)
+					{
+						if (j * threads + i >= inputs_size)
+							break;
+
+						for (int j = 0; j < neuron_weigths_size; j++)
+						{
+							neuron_weigths[j] += neuron_delta_weight[i * neuron_weigths_size + j];
+						}
+					}
 				}
 			}
 			
