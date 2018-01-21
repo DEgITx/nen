@@ -682,6 +682,7 @@ namespace NEN
 	struct NeuronNetwork
 	{
 		int threads = 1;
+		bool enable_shuffle = false;
 
 		unsigned inputs;
 		unsigned outputs;
@@ -1048,8 +1049,34 @@ namespace NEN
 		{
 			unsigned long long real_iterations = 0;
 			std::vector<double> errors;
+			
+			std::vector<std::vector<double>> input_shuffle;
+			std::vector<std::vector<double>> output_shuffle;
+			auto& input_real = enable_shuffle ? input_shuffle : i;
+			auto& output_real = enable_shuffle ? output_shuffle : o;
+
+			if (enable_shuffle)
+			{
+				input_shuffle = i;
+				output_shuffle = o;
+			}
+
 			do {
-				errors = train(i, o, fitness);
+				if (enable_shuffle)
+				{
+					for (auto s = i.size() - 1; s > 0; --s)
+					{
+						auto r = rand() % (s + 1);
+						auto i_back = input_shuffle[r];
+						auto o_back = output_shuffle[r];
+						input_shuffle[r] = input_shuffle[s];
+						output_shuffle[r] = output_shuffle[s];
+						input_shuffle[s] = i_back;
+						output_shuffle[s] = o_back;
+					}
+				}
+
+				errors = train(input_real, output_real, fitness);
 				real_iterations++;
 			} while (([&]() {
 				if (error_ == 0)
