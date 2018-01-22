@@ -682,7 +682,7 @@ namespace NEN
 	struct NeuronNetwork
 	{
 		int threads = 1;
-		bool enable_shuffle = false;
+		bool enable_shuffle = true;
 
 		unsigned inputs;
 		unsigned outputs;
@@ -743,7 +743,7 @@ namespace NEN
 
 		void init()
 		{
-			omp_set_num_threads(1);
+			//omp_set_num_threads(1);
 
 			threads = omp_get_max_threads();
 			if (threads <= 0)
@@ -1055,14 +1055,14 @@ namespace NEN
 			auto& input_real = enable_shuffle ? input_shuffle : i;
 			auto& output_real = enable_shuffle ? output_shuffle : o;
 
-			if (enable_shuffle)
+			if (enable_shuffle && i.size() != 0)
 			{
 				input_shuffle = i;
 				output_shuffle = o;
 			}
 
 			do {
-				if (enable_shuffle)
+				if (enable_shuffle && i.size() != 0)
 				{
 					for (auto s = i.size() - 1; s > 0; --s)
 					{
