@@ -927,6 +927,7 @@ namespace NEN
 			}
 			else
 			{
+#pragma omp atomic
 				iterations++;
 				memcpy(neuron_outputs + threadId * neurons_size, i, sizeof(double) * inputs);
 				forwardInput(neuron_outputs, neuron_weigths, inputs, outputs, layers, neurons, neurons_size, activation, gpu, threadId);
