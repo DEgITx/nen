@@ -1087,29 +1087,29 @@ namespace NEN
 	};
 
 
-	double normalizeInput(double x, double max, double min)
+	double normalizeInput(double x, double min, double max)
 	{
 		return (x - min) / (max - min);
 	}
 
-	std::vector<double> normalizeInput(const std::vector<double> &xArray, double max, double min)
+	std::vector<double> normalizeInput(const std::vector<double> &xArray, double min, double max)
 	{
 		std::vector<double> xSes;
 		for (double x : xArray)
-			xSes.push_back(normalizeInput(x, max, min));
+			xSes.push_back(normalizeInput(x, min, max));
 		return xSes;
 	}
 
-	double deNormalizeOutput(double y, double max, double min)
+	double deNormalizeOutput(double y, double min, double max)
 	{
 		return min + y * (max - min);
 	}
 
-	std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double max, double min)
+	std::vector<double> deNormalizeOutput(const std::vector<double> &yArray, double min, double max)
 	{
 		std::vector<double> ySes;
 		for (double y : yArray)
-			ySes.push_back(deNormalizeOutput(y, max, min));
+			ySes.push_back(deNormalizeOutput(y, min, max));
 		return ySes;
 	}
 
