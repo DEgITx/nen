@@ -62,7 +62,7 @@ test('mul', () => {
   network.setRate(0.02);
 
   console.time('mul')
-  const errors = network.train(mulInput, mulOutput, { error: 0.004, sync: true });
+  const errors = network.train(mulInput, mulOutput, { error: 0.001, sync: true });
   console.timeEnd('mul')
   console.log('mul iterations', network.iterations())
   expect(errors.length).toBe(mulOutput.length);

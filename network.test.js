@@ -17,7 +17,9 @@ const nen = require(`./build/Release/nen`)
 test('basic xor network', () => {
   const network = nen.NeuralNetwork(2, 1, 2, 4);
   network.setRate(0.02);
+  console.time('xor 2x4')
   const errors = network.train(inputData, outputData, { error: 0.5, sync: true });
+  console.timeEnd('xor 2x4')
   expect(errors.length).toBe(4);
   expect(errors[0]).toBeLessThan(0.01);
 });
@@ -25,11 +27,25 @@ test('basic xor network', () => {
 test('xor network forward', () => {
   const network = nen.NeuralNetwork(2, 1, 1, 8);
   network.setRate(0.02);
+  console.time('xor 1x8')
   network.train(inputData, outputData, { error: 0.5, sync: true });
+  console.timeEnd('xor 1x8')
   const output1 = network.forward([0, 1])[0];
   const output2 = network.forward([1, 1])[0];
   expect(output1).toBeGreaterThan(0.9);
   expect(output2).toBeLessThan(0.1);
+});
+
+test('xor one thread', () => {
+  const network = nen.NeuralNetwork(2, 1, 1, 16);
+  network.setRate(0.01);
+  network.setMultiThreads(false)
+  network.setShuffle(false)
+  network.train(inputData, outputData, { error: 0.5, sync: true });
+  const output1 = network.forward([0, 1])[0];
+  const output2 = network.forward([1, 1])[0];
+  expect(output1).toBeGreaterThan(0.8);
+  expect(output2).toBeLessThan(0.2);
 });
 
 test('async xor network', async () => {
@@ -64,7 +80,7 @@ test('genetic xor network', () => {
         error /= errors.length
       }
       return error
-  }, { error: 0.5, sync: true })
+  }, { error: 0.4, sync: true })
 
   const output1 = network.forward([1, 0])[0];
   const output2 = network.forward([0, 0])[0];
@@ -73,7 +89,7 @@ test('genetic xor network', () => {
 });
 
 test('async genetic xor network', async () => {
-  const network = nen.NeuralNetwork(2, 1, 1, 4);
+  const network = nen.NeuralNetwork(2, 1, 1, 8);
   network.setRate(0.3);
 
   let called = 0
