@@ -4,7 +4,7 @@
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest --verbose",
     "watchtest": "jest --watch",
     "install": "node-gyp rebuild"
   },

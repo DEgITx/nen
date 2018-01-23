@@ -303,9 +303,10 @@ private:
 				v8::HandleScope scope(isolate);
 
 				Local<Function> iteration_callback;
+				auto context = isolate->GetCurrentContext()->Global();
+
 				if(data->iteration_callback_use)
 				{
-					auto context = isolate->GetCurrentContext()->Global();
 					iteration_callback = Local<Function>::New(isolate, data->iteration_callback);
 					data->network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
 		  			{
@@ -322,8 +323,7 @@ private:
 					Local<Function> fitness = Local<Function>::New(isolate, data->fitness);
   					Local<Function> fitness_error = Local<Function>::New(isolate, data->fitness_error);
   					auto network = data->network;
-  					auto context = isolate->GetCurrentContext()->Global();
-			  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
+  					auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 						return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
 						[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
 							Handle<Value> argv[] = { 
