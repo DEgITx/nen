@@ -50,6 +50,8 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setBeta2", setBeta2);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setPopulation", setPopulation);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setElitePart", setElitePart);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setShuffle", setShuffle);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "setMultiThreads", setMultiThreads);
 	}
 private:
 	static v8::Persistent<v8::Function> constructor;
@@ -465,6 +467,20 @@ private:
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  network->genetic_elite_part = args[0]->NumberValue();
+	}
+
+	static void setShuffle(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->enable_shuffle = args[0]->BooleanValue();
+	}
+
+	static void setMultiThreads(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  network->setMultiThreads(args[0]->BooleanValue());
 	}
 };
 

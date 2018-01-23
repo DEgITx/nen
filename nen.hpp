@@ -432,6 +432,7 @@ namespace NEN
 	struct NeuronNetwork
 	{
 		int threads = 1;
+		int threads_max = 1;
 		bool enable_shuffle = true;
 
 		unsigned inputs;
@@ -493,11 +494,10 @@ namespace NEN
 
 		void init()
 		{
-			//omp_set_num_threads(1);
-
 			threads = omp_get_max_threads();
 			if (threads <= 0)
 				threads = 1;
+			threads_max = threads;
 
 			neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 			hidden_offset_neurons = inputs + 1;
@@ -568,6 +568,20 @@ namespace NEN
 #if defined(__NVCC__) || defined(__CUDACC__)
 			cudaDeviceReset();
 #endif
+		}
+
+		void setMultiThreads(bool multi)
+		{
+			if (multi)
+			{
+				threads = threads_max;
+				omp_set_num_threads(threads_max);
+			}
+			else
+			{
+				threads = 1;
+				omp_set_num_threads(1);
+			}
 		}
 
 		void forward(const std::vector<double> &i)
@@ -915,8 +929,8 @@ namespace NEN
 #ifdef _DEBUG
 			system("cls");
 
-			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << " algorithm = " << algorithm << "\n";
-			std::cout << "r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
+			std::cout << "neurons = " << neurons_size << " w = " << neuron_weigths_size << " run on = " << (gpu ? "GPU" : "CPU") << " threads = " << threads << " algorithm = " << algorithm << "\n";
+			std::cout << "shuffle = " << enable_shuffle << " r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
 			std::cout << "iterations: " << iterations << "\n";
 			double avrg = 0;
 			for (double error : errors)

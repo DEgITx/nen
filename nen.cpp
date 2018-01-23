@@ -4,11 +4,15 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 2, 12, NEN::Adam);
+	NEN::NeuronNetwork n(2, 1, 3, 22, NEN::Adagrad);
 	//n.rate = 0.1;
-	n.rate = 0.05;
+	n.rate = 0.1;
 	//n.d_epsilon = 0.000000001;
-	n.activation = NEN::TanH;
+	n.activation = NEN::Sigmoid;
+
+	//n.setMultiThreads(false);
+	//n.enable_shuffle = false;
+
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
 	
@@ -83,10 +87,10 @@ int main()
 		NEN::normalizeInput(std::vector<double>{ log(40) }, 0, 10),
 		NEN::normalizeInput(std::vector<double>{ log(35) }, 0, 10),
 	};
-	*/
-	/*
+	
+	
 	auto start = std::chrono::high_resolution_clock::now();
-	n.trainWhileError(a, b, 0, 1);
+	n.train(a, b, 0.01);
 	//}, 0, 0.1);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
@@ -95,8 +99,12 @@ int main()
 	n.forward(NEN::normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n.output())
 		std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;
+	n.forward(NEN::normalizeInput({ log(5), log(5) }, 0, 10));
+	for (auto& o : n.output())
+		std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;
 	//n.saveFile("mul.ner");
 	*/
+	
 
 	//n.setAutoSaveFile("add.ner");
 	//n.loadTrainData("add.data");
@@ -108,8 +116,7 @@ int main()
 	
 	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 }};
 	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
-
-
+	
 	auto start = std::chrono::high_resolution_clock::now();
 	n.train(a, b, 0.5);
 	auto finish = std::chrono::high_resolution_clock::now();
@@ -118,6 +125,8 @@ int main()
 	std::cout << n.iterations << " it\n";
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
+
+	
 
 #if 0
 	double error = 1;
@@ -172,12 +181,10 @@ int main()
 	}
 #endif
 #if 0
+
 	auto start = std::chrono::high_resolution_clock::now();
 	double e = 1;
 	std::vector<double> errs = {1, 1, 1, 1};
-	n.iteration_callback = [](unsigned long long it, double rr) {
-		printf("\n");
-	};
 	auto fitness = [&n, &a, &b, &errs, &e](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 		unsigned i = iteration % a.size();
 		std::vector<double> input = a[i];
@@ -214,12 +221,11 @@ int main()
 	std::cout << "w: ";
 	for (int i = 0; i < n.neuron_weigths_size; i++)
 		std::cout << n.neuron_weigths[i] << " ";
-#endif
 
 	//n.forward(NEN::normalizeInput({ log(2), log(8) }, 0, 10));
 	//for (auto& o : n.output())
 	//	std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;	
-	
+#endif
 
     return 0;
 }

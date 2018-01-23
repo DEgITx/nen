@@ -160,6 +160,18 @@ population part as elite part
 
 default: 3 (means 1/3 of population)
 
+### setElitePart( *shuffle* )
+
+shuffle data between each iteration
+
+default: true
+
+### setMultiThreads( *multi* )
+
+Enable multithread mini-batch learning. For more stable but slower learning disable this option.
+
+default: true
+
 ## Fitness Function learning example
 
 Sometimes we don't know exact input/output values, but know that neural network A better then neural network B. For such cases we can compare two neural networks for best results using genetic algorithms and fitness compare function
