@@ -4,14 +4,14 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 3, 22, NEN::Adagrad);
+	NEN::NeuronNetwork n(2, 1, 1, 22, NEN::Adam);
 	//n.rate = 0.1;
-	n.rate = 0.1;
+	n.rate = 0.02;
 	//n.d_epsilon = 0.000000001;
 	n.activation = NEN::Sigmoid;
 
-	//n.setMultiThreads(false);
-	//n.enable_shuffle = false;
+	n.setMultiThreads(false);
+	n.enable_shuffle = false;
 
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
@@ -50,7 +50,7 @@ int main()
 	f.close();
 	*/
 
-	/*
+	
 	auto a = std::vector<std::vector<double>>{
 		NEN::normalizeInput({ log(1), log(3) }, 0, 10),
 		NEN::normalizeInput({ log(2), log(7) }, 0, 10),
@@ -99,11 +99,11 @@ int main()
 	n.forward(NEN::normalizeInput({ log(8), log(8) }, 0, 10));
 	for (auto& o : n.output())
 		std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;
-	n.forward(NEN::normalizeInput({ log(5), log(5) }, 0, 10));
+	n.forward(NEN::normalizeInput({ log(4), log(5) }, 0, 10));
 	for (auto& o : n.output())
 		std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;
 	//n.saveFile("mul.ner");
-	*/
+	
 	
 
 	//n.setAutoSaveFile("add.ner");
@@ -112,7 +112,7 @@ int main()
 	//auto result = n.get({ log(2) / log(100), log(2) / log(100) });
 	//std::cout << "out " << exp(result[0] * log(100)) << std::endl;
 	
-
+/*
 	
 	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 }};
 	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
@@ -125,6 +125,8 @@ int main()
 	std::cout << n.iterations << " it\n";
 	std::cout << n.get({ 0, 1 })[0] << "\n";
 	std::cout << n.get({ 1, 1 })[0] << "\n";
+
+	*/
 
 	
 
