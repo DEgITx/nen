@@ -6,6 +6,9 @@
       'cflags': [
         '-fopenmp',
       ],
+      'ldflags': [
+        '-fopenmp',
+      ],
       'conditions': [
         ['OS=="win"', {
           'msvs_settings': {
