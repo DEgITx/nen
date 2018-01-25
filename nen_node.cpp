@@ -355,9 +355,9 @@ private:
 	  	}
 	  	else
 	  	{
+	  		auto context = isolate->GetCurrentContext()->Global();
 	  		if(iteration_callback_use)
 	  		{
-	  			auto context = isolate->GetCurrentContext()->Global();
 	  			network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
 	  			{
 	  				Handle<Value> argv[] = {
@@ -372,7 +372,6 @@ private:
 	  			errors = network->train(inputs, outputs, error_target);
 	  		else
 	  		{
-	  			auto context = isolate->GetCurrentContext()->Global();
 		  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 					return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
 					[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
