@@ -800,7 +800,7 @@ namespace NEN
 						int tid = omp_get_thread_num();
 						unsigned n = j * threads + t;
 						if(n >= inputs_size)
-							break;
+							continue;
 
 						errors[n] = train(i[n], o[n], std::function<bool(double*, double*)>(), std::function<double()>(), tid);
 						
