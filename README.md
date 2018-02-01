@@ -136,6 +136,14 @@ forward input data through the network and return errors
 
 get number of iterations from last learning process
 
+### save( *fileName* )
+
+save current neural network to file
+
+### load( *fileName* )
+
+load neural network from file
+
 ### setMoment( *moment* )
 
 set moment factor
@@ -160,7 +168,7 @@ population part as elite part
 
 default: 3 (means 1/3 of population)
 
-### setElitePart( *shuffle* )
+### setShuffle( *shuffle* )
 
 shuffle data between each iteration
 
@@ -221,4 +229,43 @@ network.train(
 
 console.log(network.forward([0, 1])) // [ 0.9999999999942144 ]
 console.log(network.forward([0, 0])) // [ 9.965492560315975e-10 ]
+```
+
+## Save/Load learned neural network
+This example contains async train call
+
+``` js
+const network = NEuralNetwork(2, 1, 2, 4) // create neural network
+
+// learn data
+const inputData = [
+	[0, 1], 
+	[1, 1], 
+	[0, 0], 
+	[1, 0]
+]
+const outputData = [
+	[1], // 0 xor 1 = 1
+	[0], // 1 xor 1 = 0
+	[0], // 0 xor 0 = 0
+	[1]  // 1 xor 0 = 1
+]
+
+// create second neural network
+// doesn't matter which size (it will be resized after load call)
+const network2 = NEuralNetwork(2, 1, 2, 4)
+
+const f = async () => {
+	// train until 0.5% errors
+	await network.train(inputData, outputData, {error: 0.5})
+	// save network to file
+	network.save('xor.nen')
+	// load network2 from file 
+	network2.load('xor.nen')
+	
+	// result
+	console.log(network.forward([0, 1])) // [ 0.9097776354174257 ]
+	console.log(network2.forward([0, 1])) // [ 0.909777584133939 ]
+}
+f()
 ```

@@ -149,3 +149,22 @@ test('limit iterations', () => {
   network.train(inputData, outputData, { error: 0.5, sync: true, iterations: 7 });
   expect(network.iterations()).toBe(7 * 4);
 });
+
+test('save/load network', () => {
+  const network = nen.NeuralNetwork(2, 1, 2, 10);
+  network.setRate(0.02);
+  console.time('xor 2x10')
+  network.train(inputData, outputData, { error: 0.5, sync: true });
+  console.timeEnd('xor 2x10')
+  const output1 = network.forward([1, 0])[0];
+  const output2 = network.forward([0, 0])[0];
+  expect(output1).toBeGreaterThan(0.89);
+  expect(output2).toBeLessThan(0.11);
+  network.save('xor2x10.nen')
+
+  const network2 = nen.NeuralNetwork(2, 1, 1, 4);
+  expect(network2.forward([1, 0])[0]).not.toBe(output1)
+  network2.load('xor2x10.nen')
+  expect(network2.forward([1, 0])[0].toFixed(4)).toBe(output1.toFixed(4))
+  expect(network2.forward([0, 0])[0].toFixed(4)).toBe(output2.toFixed(4))
+});

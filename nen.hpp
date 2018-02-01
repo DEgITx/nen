@@ -497,7 +497,8 @@ namespace NEN
 			threads = omp_get_max_threads();
 			if (threads <= 0)
 				threads = 1;
-			threads_max = threads;
+			if(threads > threads_max)
+				threads_max = threads;
 
 			neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 			hidden_offset_neurons = inputs + 1;

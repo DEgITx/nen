@@ -41,6 +41,8 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "train", Train);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "backPropagate", BackProp);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "error", Error);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "save", Save);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "load", Load);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setActivation", setActivation);
@@ -91,6 +93,28 @@ private:
 	  NEN::NeuronNetwork* obj = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  args.GetReturnValue().Set(Number::New(isolate, obj->iterations));
+	}
+
+	static void Save(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  if(args[0]->IsString())
+	  {
+	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	network->saveFile(std::string(*fileName));
+	  }
+	}
+
+	static void Load(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  if(args[0]->IsString())
+	  {
+	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	network->loadFile(std::string(*fileName));
+	  }
 	}
 
 	static std::vector<double> toVector(Isolate* isolate, const Handle<Value>& value)

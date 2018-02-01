@@ -1,10 +1,10 @@
 {
   "name": "nen",
-  "version": "0.2.16",
+  "version": "0.2.18",
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
   "scripts": {
-    "test": "jest --verbose",
+    "test": "jest -i --verbose",
     "watchtest": "jest --watch",
     "install": "node-gyp rebuild"
   },
