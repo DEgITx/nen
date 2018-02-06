@@ -10,7 +10,12 @@ function execp(cmd, opts = {}) {
 const f = (async () => {
 	if(process.platform === 'darwin')
 	{
-		await execp('brew install llvm')
+		try {
+			await execp('brew install llvm')
+		} catch(e) {
+			await execp('rm -rf /usr/local/opt/llvm')
+			await execp('brew install llvm')
+		}
 		await execp('env CXX="/usr/local/opt/llvm/bin/clang++ -L/usr/local/opt/llvm/lib" node-gyp rebuild')
 	}
 	else
