@@ -1,14 +1,18 @@
 {
   "name": "nen",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "description": "Fast Neural Network library with with native CPU/GPU bindings and algorithm choice",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DEgITx/nen.git"
+  },
   "scripts": {
     "test": "jest -i --verbose",
     "watchtest": "jest --watch",
     "install": "node-gyp rebuild"
   },
-  "author": "Alexey Kasyanchuk",
+  "author": "Alexey Kasyanchuk <degitx@gmail.com>",
   "copyright": "Copyright © 2018 Alexey Kasyanchuk",
   "license": "ISC",
   "gypfile": true,
