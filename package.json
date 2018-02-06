@@ -9,7 +9,7 @@
     "install": "node-gyp rebuild"
   },
   "author": "Alexey Kasyanchuk",
-  "copyright": "Copyright © 2017 Alexey Kasyanchuk",
+  "copyright": "Copyright © 2018 Alexey Kasyanchuk",
   "license": "ISC",
   "gypfile": true,
   "keywords": [

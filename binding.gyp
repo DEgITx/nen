@@ -2,7 +2,7 @@
   "targets": [
     {
       "target_name": "nen",
-      "sources": [ "nen_node.cpp" ],
+      "sources": [ "src/nen_node.cpp" ],
       'cflags': [
         '-fopenmp',
       ],

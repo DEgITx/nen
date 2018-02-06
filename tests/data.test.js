@@ -1,4 +1,4 @@
-const nen = require(`./build/Release/nen`)
+const nen = require(`../build/Release/nen`)
 
 const normCore = (x, min, max) => {
   return (x - min) / (max - min)

@@ -1,4 +1,4 @@
-const nen = require(`./build/Release/nen`)
+const nen = require(`../build/Release/nen`)
 
   const inputData = [
     [0, 1], 
