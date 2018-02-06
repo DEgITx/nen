@@ -1,6 +1,10 @@
 NEN - Fast and Light Neural Network Library
 ==============
 
+[![CircleCI Build Status](https://circleci.com/gh/DEgITx/nen.png?style=shield)](https://circleci.com/gh/DEgITx/nen)
+[![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/g35w6jrxotudolvo?svg=true)](https://ci.appveyor.com/project/DEgITx/nen)
+[![Travis Build Status](https://travis-ci.org/DEgITx/nen.svg?branch=master)](https://travis-ci.org/DEgITx/nen)
+
 Neural Network library with with native CPU/GPU bindings and learning algorithms choice. 
 
 ## Instalation
