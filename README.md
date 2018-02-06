@@ -231,7 +231,7 @@ console.log(network.forward([0, 1])) // [ 0.9999999999942144 ]
 console.log(network.forward([0, 0])) // [ 9.965492560315975e-10 ]
 ```
 
-## Save/Load learned neural network
+## Save/Load trained neural network
 This example contains async train call
 
 ``` js
@@ -258,7 +258,7 @@ const network2 = NEuralNetwork(2, 1, 2, 4)
 const f = async () => {
 	// train until 0.5% errors
 	await network.train(inputData, outputData, {error: 0.5})
-	// save network to file
+	// save trained network to file
 	network.save('xor.nen')
 	// load network2 from file 
 	network2.load('xor.nen')
