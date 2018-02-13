@@ -148,6 +148,18 @@ save current neural network to file
 
 load neural network from file
 
+### loadData( *fileName* )
+
+load training data from file
+
+Every line contain inputs and appropriate outputs:
+
+1: input1_1 input1_2 ... input1_N output1_1 output1_2 ... input1_M
+
+2: input2_1 input2_2 ... input2_N output2_1 output2_2 ... input2_M
+
+...
+
 ### setMoment( *moment* )
 
 set moment factor
