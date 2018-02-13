@@ -71,3 +71,17 @@ test('mul', () => {
   expect(Math.exp(deNorm(network.forward(norm([log(4), log(5)], 0, 10)), 0, 10))).toBeGreaterThan(16)
   expect(Math.exp(deNorm(network.forward(norm([log(4), log(5)], 0, 10)), 0, 10))).toBeLessThan(24)
 });
+
+
+test('momorize image', () => {
+  const network = nen.NeuralNetwork(2, 3, 2, 31);
+  network.setMultiThreads(true)
+  network.setShuffle(true)
+  network.setRate(0.004);
+  network.loadData('tests/data/logo_memory_15600.data')
+  console.time('mem image')
+  const errors = network.train(null, null, { error: 5.55, sync: true });
+  console.timeEnd('mem image')
+  console.log('mem image iterations', network.iterations())
+  expect(network.iterations()).toBeGreaterThan(300000)
+});

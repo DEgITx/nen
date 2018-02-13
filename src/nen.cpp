@@ -4,14 +4,29 @@
 int main()
 {
 	//srand(time(NULL));
-	NEN::NeuronNetwork n(2, 1, 1, 22, NEN::Adam);
+	//NEN::NeuronNetwork n(2, 1, 1, 22, NEN::Adam);
 	//n.rate = 0.1;
-	n.rate = 0.02;
+	//n.rate = 0.02;
 	//n.d_epsilon = 0.000000001;
-	n.activation = NEN::Sigmoid;
+	//n.activation = NEN::Sigmoid;
 
-	n.setMultiThreads(false);
-	n.enable_shuffle = false;
+	//n.setMultiThreads(false);
+	//n.enable_shuffle = false;
+
+	// image
+	//NEN::NeuronNetwork n2(2, 3, 1, 34, NEN::Adam);
+	NEN::NeuronNetwork n2(2, 3, 2, 31, NEN::Adam);
+	n2.rate = 0.004;
+	n2.d_epsilon = 0.00000000001;
+	n2.setMultiThreads(true);
+	n2.enable_shuffle = true;
+	n2.loadTrainData("../../tests/data/logo_memory_15600.data");
+	auto start = std::chrono::high_resolution_clock::now();
+	n2.train(std::vector<std::vector<double>>(), std::vector<std::vector<double>>(), 5.55);
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+	std::cout << "time: " << diff << " ms" << std::endl;
+
 
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
@@ -49,7 +64,7 @@ int main()
 	}
 	f.close();
 	*/
-
+	/*
 	
 	auto a = std::vector<std::vector<double>>{
 		NEN::normalizeInput({ log(1), log(3) }, 0, 10),
@@ -104,7 +119,7 @@ int main()
 		std::cout << "out " << exp(NEN::deNormalizeOutput(o, 0, 10)) << std::endl;
 	//n.saveFile("mul.ner");
 	
-	
+	*/
 
 	//n.setAutoSaveFile("add.ner");
 	//n.loadTrainData("add.data");

@@ -43,6 +43,7 @@ public:
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "error", Error);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "save", Save);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "load", Load);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "loadData", LoadData);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setAlgorithm", setAlgorithm);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setRate", setRate);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "setActivation", setActivation);
@@ -114,6 +115,17 @@ private:
 	  {
 	  	v8::String::Utf8Value fileName(args[0]->ToString());
 	  	network->loadFile(std::string(*fileName));
+	  }
+	}
+
+	static void LoadData(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  if(args[0]->IsString())
+	  {
+	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	network->loadTrainData(std::string(*fileName));
 	  }
 	}
 
@@ -230,7 +242,7 @@ private:
 	  	
 	  }
 
-	  if(args[0]->IsArray() || args[0]->IsFunction())
+	  if(args[0]->IsArray() || args[0]->IsFunction() || (args[0]->IsNull() && args[1]->IsNull()))
 	  {
 	  	std::vector<double> errors;
 	  	std::vector<std::vector<double>> inputs;
@@ -252,7 +264,7 @@ private:
 		  		outputs.push_back(toVector(isolate, args[1]));
 		  	}
 	  	}
-	  	else
+	  	else if(args[0]->IsFunction())
 	  	{
   			fitness = Local<Function>::Cast(args[0]);
   			fitness_error = Local<Function>::Cast(args[1]);
