@@ -346,11 +346,12 @@ namespace NEN
 	}
 
 	double randomWeight(void) { return rand() / double(RAND_MAX); }
-
+	
+	static int threads_max = 1;
+	
 	struct NeuronNetwork
 	{
 		int threads = 1;
-		int threads_max = 1;
 		bool enable_shuffle = true;
 
 		unsigned inputs;
@@ -400,23 +401,23 @@ namespace NEN
 
 		NeuronNetwork(unsigned inputs_, unsigned outputs_, unsigned layers_, unsigned neurons_, TrainingAlgorithm algorithm_ = Adam)
 		{
+			int new_threads_count = omp_get_max_threads();
+			if(new_threads_count > threads_max)
+				threads_max = new_threads_count;
+			
 			algorithm = algorithm_;
-
 			inputs = inputs_;
 			outputs = outputs_;
 			layers = layers_;
 			neurons = neurons_;
-
 			init();
 		}
 
 		void init()
 		{
-			threads = omp_get_max_threads();
+			threads = threads_max;
 			if (threads <= 0)
 				threads = 1;
-			if(threads > threads_max)
-				threads_max = threads;
 
 			neurons_size = inputs + 1 + outputs + (neurons + 1) * layers;
 			hidden_offset_neurons = inputs + 1;
@@ -770,8 +771,8 @@ namespace NEN
 		}
 
 		std::vector<double> train(
-			const std::vector<std::vector<double>> &i, 
-			const std::vector<std::vector<double>> &o, 
+			const std::vector<std::vector<double>> &inputs,
+			const std::vector<std::vector<double>> &outputs,
 			double error_ = 0,
 			const std::function<
 				std::pair<std::function<bool(double*, double*)>, 
@@ -779,6 +780,9 @@ namespace NEN
 			>(unsigned long long)>& fitness = std::function<std::pair<std::function<bool(double*, double*)>, std::function<double()>>(unsigned long long)>()
 		)
 		{
+			auto& i = (inputs.size() == 0 && train_data_inputs.size() > 0) ? train_data_inputs :  inputs;
+			auto& o = (outputs.size() == 0 && train_data_outputs.size() > 0) ? train_data_outputs : outputs;
+
 			unsigned long long real_iterations = 0;
 			std::vector<double> errors;
 			
@@ -836,13 +840,6 @@ namespace NEN
 			return errors;
 		}
 
-		void train(double error_)
-		{
-			if (train_data_inputs.size() == 0 || train_data_outputs.size() == 0)
-				return;
-			train(train_data_inputs, train_data_outputs, error_);
-		}
-
 		void printStatistic(const std::vector<double>& errors)
 		{
 #ifdef _DEBUG
@@ -852,10 +849,13 @@ namespace NEN
 			std::cout << "shuffle = " << enable_shuffle << " r = " << rate << " m = " << momentum << " b1 = " << beta1 << " b2 = " << beta2 << " eps = " << d_epsilon << "\n";
 			std::cout << "iterations: " << iterations << "\n";
 			double avrg = 0;
+			int errors_max = 0;
 			for (double error : errors)
 			{
-				std::cout << error * 100 << "%" << std::endl;
 				avrg += error;
+				if (++errors_max >= 25)
+					continue;
+				std::cout << error * 100 << "%" << std::endl;
 			}
 			std::cout << "avrg error = " << (avrg / errors.size()) * 100 << "%" << std::endl;
 #endif
