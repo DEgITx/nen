@@ -128,14 +128,6 @@ namespace NEN
 	}
 
 #if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void forwardKernelGPU(double *outputs, double *weightes, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, ActivationFunction activation)
-	{
-		int i = threadIdx.x;
-		forwardKernel(i, outputs, weightes, layer, inputs, outputs_size, layers, neurons, activation);
-	}
-#endif
-
-#if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
 #endif
 	void calculateOutputDelta(
@@ -157,14 +149,6 @@ namespace NEN
 			delta[threadId * neurons_size + i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[threadId * neurons_size + i + outputs_offset], activation);
 		}
 	}
-
-#if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void calculateOutputDeltaGPU(double *outputs, double *delta, double *targets, const unsigned outputs_offset, ActivationFunction activation)
-	{
-		int i = threadIdx.x;
-		calculateOutputDelta(i, outputs, delta, targets, outputs_offset, activation);
-	}
-#endif
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
@@ -204,14 +188,6 @@ namespace NEN
 			}
 		}
 	}
-
-#if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void calculateHiddensDeltaGPU(double *outputs, double *weightes, double *delta, const unsigned layer, const unsigned inputs, const unsigned outputs_size, const unsigned layers, const unsigned neurons, ActivationFunction activation)
-	{
-		int i = threadIdx.x;
-		calculateHiddensDelta(i, outputs, weightes, delta, layer, inputs, outputs_size, layers, neurons, activation);
-	}
-#endif
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
@@ -344,64 +320,6 @@ namespace NEN
 			}
 		}
 	}
-
-#if defined(__NVCC__) || defined(__CUDACC__)
-	__global__ void updateInputWeightsGPU(
-		double *outputs,
-		double *weightes,
-		double *delta,
-		double *delta_weight,
-
-		const unsigned layer,
-		const unsigned inputs,
-		const unsigned outputs_size,
-		const unsigned layers,
-		const unsigned neurons,
-
-		TrainingAlgorithm algorithm,
-
-		double *algorithm_e,
-		double *algorithm_m,
-		double *algorithm_v,
-		double *algorithm_t,
-
-		double rate,
-		double momentum,
-		double beta1,
-		double beta2,
-		double d_epsilon
-	)
-	{
-		int i = threadIdx.x;
-		updateInputWeights(
-			i,
-
-			outputs,
-			weightes,
-			delta,
-			delta_weight,
-
-			layer,
-			inputs,
-			outputs_size,
-			layers,
-			neurons,
-
-			algorithm,
-
-			algorithm_e,
-			algorithm_m,
-			algorithm_v,
-			algorithm_t,
-
-			rate,
-			momentum,
-			beta1,
-			beta2,
-			d_epsilon
-		);
-	}
-#endif
 
 #if defined(__NVCC__) || defined(__CUDACC__)
 	__host__ __device__
