@@ -347,6 +347,12 @@ namespace NEN
 
 	double randomWeight(void) { return rand() / double(RAND_MAX); }
 	
+	static unsigned int g_seed;
+	inline int frand() {
+		g_seed = (214013 * g_seed + 2531011);
+		return (g_seed >> 16) & 0x7FFF;
+	}
+
 	static int threads_max = 1;
 	
 	struct NeuronNetwork
@@ -802,7 +808,7 @@ namespace NEN
 				{
 					for (auto s = i.size() - 1; s > 0; --s)
 					{
-						auto r = rand() % (s + 1);
+						auto r = frand() % (s + 1);
 						auto i_back = input_shuffle[r];
 						auto o_back = output_shuffle[r];
 						input_shuffle[r] = input_shuffle[s];
@@ -958,7 +964,7 @@ namespace NEN
 					cudaMallocManaged(&entity, neuron_weigths_size * sizeof(double));
 					genetic_population_allowed.insert(entity);
 					for (unsigned j = 0; j < neuron_weigths_size; j++)
-						entity[j] = ((double)rand() / (RAND_MAX));
+						entity[j] = ((double)frand() / (RAND_MAX));
 					genetic_population.push_back(entity);
 				}
 			}
@@ -982,9 +988,9 @@ namespace NEN
 				double* bad_entity = genetic_population[i];
 
 				// crossing over
-				double* random_elite = genetic_population[rand() % elite];
+				double* random_elite = genetic_population[frand() % elite];
 				for (unsigned gen = 0; gen < neuron_weigths_size; ++gen)
-					if (rand() % 2 == 1)
+					if (frand() % 2 == 1)
 						bad_entity[gen] = random_elite[gen];
 
 				// mutation
@@ -993,11 +999,11 @@ namespace NEN
 				//		bad_entity[gen] = ((double)rand() / (RAND_MAX));
 				for (unsigned gen = 0; gen < neuron_weigths_size; ++gen)
 				{
-					if (rand() % 4 == 1)
+					if (frand() % 4 == 1)
 					{
 						if (bad_entity[gen] > genetic_max_weight || bad_entity[gen] < -genetic_max_weight)
-							bad_entity[gen] = (((double)rand() / (RAND_MAX)) * 2 - 1);
-						bad_entity[gen] += (((double)rand() / (RAND_MAX)) * 2 - 1) * rate;
+							bad_entity[gen] = (((double)frand() / (RAND_MAX)) * 2 - 1);
+						bad_entity[gen] += (((double)frand() / (RAND_MAX)) * 2 - 1) * rate;
 					}
 				}
 			}
