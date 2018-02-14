@@ -80,8 +80,8 @@ test('momorize image', () => {
   network.setRate(0.004);
   network.loadData('tests/data/logo_memory_15600.data')
   console.time('mem image')
-  const errors = network.train(null, null, { error: 5.55, sync: true });
+  const errors = network.train(null, null, { error: 5.5, sync: true });
   console.timeEnd('mem image')
   console.log('mem image iterations', network.iterations())
-  expect(network.iterations()).toBeGreaterThan(300000)
+  expect(network.iterations()).toBeGreaterThan(120000)
 });
