@@ -121,12 +121,12 @@ default: 3
 
 set actionvation function
 
-* 0 - Logistic
-* 1 - Hyperbolic tangent
-* 2 - Identity
-* 3 - Rectified linear unit
+* 0 - Logistic (data range: [0, 1])
+* 1 - Hyperbolic tangent (data range: [-1, 1])
+* 2 - Identity (data range: (-∞, +∞))
+* 3 - Rectified linear unit (data range: [0, +∞))
 
-default: 0
+default: 0 - Logistic
 
 ### error( *[outputData]* )
 
