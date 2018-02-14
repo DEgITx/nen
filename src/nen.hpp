@@ -712,28 +712,24 @@ namespace NEN
 			{
 				size_t inputs_size = i.size();
 				errors.resize(inputs_size);
-				for (int j = 0; j < (int)ceil((double)inputs_size / threads); ++j)
+				int current = 0;
+				while (current < inputs_size)
 				{
+					int sample = 1 + rand() % threads;
 #pragma omp parallel for
-					for (int t = 0; t < threads; ++t)
+					for (int t = 0; t < sample; ++t)
 					{
-						int tid = omp_get_thread_num();
-						unsigned n = j * threads + t;
-						if(n >= inputs_size)
+						int tid = t;
+						unsigned n = current + t;
+						if (n >= inputs_size)
 							continue;
 
 						errors[n] = train(i[n], o[n], std::function<bool(double*, double*)>(), std::function<double()>(), tid);
-						
-						//#pragma omp critical
-						//{
-						//	for (int j = 0; j < neuron_weigths_size; j++)
-						//		neuron_weigths[j] += neuron_delta_weight[tid * neuron_weigths_size + j];
-						//}
 					}
 
-					for (int i = 0; i < threads; i++)
+					for (int i = 0; i < sample; i++)
 					{
-						if (j * threads + i >= inputs_size)
+						if (current + i >= inputs_size)
 							break;
 
 						for (int j = 0; j < neuron_weigths_size; j++)
@@ -741,6 +737,8 @@ namespace NEN
 							neuron_weigths[j] += neuron_delta_weight[i * neuron_weigths_size + j];
 						}
 					}
+
+					current += sample;
 				}
 			}
 			
