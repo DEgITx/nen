@@ -95,6 +95,9 @@ options:
 * iterations - iteration limitation (full cycle) (default: 0 - unlimit)
 * iteration : Function - callback that called per full iteration cycle
 
+Note: without "error" and "iterations" option train() don't start learning cycle. 
+You can set those values or start cycle manually (slower)
+
 #### train( fitness: Function, error: Function, *options* )
 
 train using fitness function
@@ -138,7 +141,11 @@ forward input data through the network and return errors
 
 ### iterations()
 
-get number of iterations from last learning process
+get number of iterations from last learning process (each sample from epoch is count)
+
+### epochCount()
+
+get epoch number (each sample set in epoch is count as one iteration)
 
 ### save( *fileName* )
 
