@@ -37,6 +37,7 @@ public:
 	static void Methods(Local<FunctionTemplate>& tpl)
 	{
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "iterations", Iterations);
+	  NODE_SET_PROTOTYPE_METHOD(tpl, "epochCount", EpochCount);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "forward", Forward);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "train", Train);
 	  NODE_SET_PROTOTYPE_METHOD(tpl, "backPropagate", BackProp);
@@ -94,6 +95,13 @@ private:
 	  NEN::NeuronNetwork* obj = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  args.GetReturnValue().Set(Number::New(isolate, obj->iterations));
+	}
+
+	static void EpochCount(const FunctionCallbackInfo<Value>& args) {
+	  Isolate* isolate = args.GetIsolate();
+	  NEN::NeuronNetwork* obj = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
+
+	  args.GetReturnValue().Set(Number::New(isolate, obj->epoch_iterations));
 	}
 
 	static void Save(const FunctionCallbackInfo<Value>& args) {

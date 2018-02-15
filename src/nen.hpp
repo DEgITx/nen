@@ -389,6 +389,7 @@ namespace NEN
 		std::vector<std::vector<double>> train_data_outputs;
 		std::string auto_save_file;
 		unsigned long long iterations = 0;
+		unsigned long long epoch_iterations = 0;
 		unsigned long long iterations_limit = 0;
 		std::function<void(unsigned long long, double)> iteration_callback;
 
@@ -464,6 +465,7 @@ namespace NEN
 			clearTrainData();
 
 			iterations = 0;
+			epoch_iterations = 0;
 		}
 
 		void free()
@@ -783,7 +785,6 @@ namespace NEN
 			auto& i = (inputs.size() == 0 && train_data_inputs.size() > 0) ? train_data_inputs :  inputs;
 			auto& o = (outputs.size() == 0 && train_data_outputs.size() > 0) ? train_data_outputs : outputs;
 
-			unsigned long long real_iterations = 0;
 			std::vector<double> errors;
 			
 			std::vector<std::vector<double>> input_shuffle;
@@ -813,14 +814,8 @@ namespace NEN
 				}
 
 				errors = train(input_real, output_real, fitness);
-				real_iterations++;
+				epoch_iterations++;
 			} while (([&]() {
-				if (error_ == 0)
-					return false;
-
-				if (iterations_limit > 0 && real_iterations >= iterations_limit)
-					return false;
-
 				double errorAvrg = 0;
 				for (auto error : errors)
 				{
@@ -831,10 +826,16 @@ namespace NEN
 				if (iteration_callback && !fitness)
 					iteration_callback(iterations, errorAvrg);
 
-				if (errorAvrg * 100 > error_)
-					return true;
+				if (error_ == 0 && iterations_limit == 0)
+					return false;
 
-				return false;
+				if (iterations_limit > 0 && epoch_iterations >= iterations_limit)
+					return false;
+
+				if (errorAvrg * 100 <= error_)
+					return false;
+
+				return true;
 			})());
 			printStatistic(errors);
 			return errors;

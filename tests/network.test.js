@@ -147,7 +147,16 @@ test('limit iterations', () => {
   const network = nen.NeuralNetwork(2, 1, 4, 8);
   network.setRate(0.02);
   network.train(inputData, outputData, { error: 0.5, sync: true, iterations: 7 });
+  expect(network.epochCount()).toBe(7);
   expect(network.iterations()).toBe(7 * 4);
+});
+
+test('limit iterations without error set', () => {
+  const network = nen.NeuralNetwork(2, 1, 5, 7);
+  network.setRate(0.02);
+  network.train(inputData, outputData, { sync: true, iterations: 25 });
+  expect(network.epochCount()).toBe(25);
+  expect(network.iterations()).toBe(25 * 4);
 });
 
 test('save/load network', () => {
