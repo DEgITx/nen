@@ -302,11 +302,8 @@ namespace NEN
 						m = beta1 * m + (1 - beta1) * gradient;
 						v = beta2 * v + (1 - beta2) * gradient * gradient;
 
-						double mt = m / (1 - fastPow(beta1, t));
-						double mv = v / (1 - fastPow(beta2, t));
+						newDeltaWeight = rate * (m / (1 - fastPow(beta1, t))) / sqrt((v / (1 - fastPow(beta2, t))) + d_epsilon);
 						t++;
-
-						newDeltaWeight = rate * mt / sqrt(mv + d_epsilon);
 
 						break;
 					}
