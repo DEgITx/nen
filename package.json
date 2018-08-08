@@ -8,7 +8,7 @@
     "url": "https://github.com/DEgITx/nen.git"
   },
   "scripts": {
-    "test": "jest -i --verbose",
+    "test": "jest --testEnvironment node -i --verbose",
     "watchtest": "jest --watch",
     "install": "node build.js"
   },
@@ -23,6 +23,6 @@
   ],
   "dependencies": {},
   "devDependencies": {
-    "jest": "^22.1.4"
+    "jest": "^23.4.2"
   }
 }
