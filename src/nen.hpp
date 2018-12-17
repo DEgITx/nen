@@ -971,10 +971,13 @@ namespace NEN
 			if (genetic_populate)
 			{
 				for (int i = 1; i < genetic_population_size / elite; i++)
+				{
 					for (int j = 0; j < elite; j++)
 						memcpy(genetic_population[i * elite + j], genetic_population[j], neuron_weigths_size * sizeof(double));
+				}
 			}
 
+#pragma omp parallel for
 			for (int i = elite; i < genetic_population_size; ++i)
 			{
 				double* bad_entity = genetic_population[i];
