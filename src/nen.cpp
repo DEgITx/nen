@@ -3,8 +3,106 @@
 
 int main()
 {
+	bool* best = new bool[10];
+	for (int i = 0; i < 10; i++)
+		best[i] = rand() % 2;
+
+	int prise[10] = {
+		10,
+		5,
+		21,
+		2,
+		8,
+		32,
+		2,
+		4,
+		11,
+		16
+	};
+	std::string names[10] = {
+		"stol",
+		"kolonka",
+		"holodilnic",
+		"pepelnica",
+		"dver",
+		"televizor",
+		"sigareti",
+		"eda",
+		"telefon",
+		"noutbuk"
+	};
+	int w[10] = {
+		12,
+		4,
+		20,
+		2,
+		13,
+		18,
+		1,
+		5,
+		4,
+		9
+	};
+
+	auto f = [&](bool* a, bool* b)
+	{
+		int prize1 = 0, prize2 = 0, w1 = 0, w2 = 0;
+		for (int i = 0; i < 10; i++)
+		{
+			if (a[i])
+			{
+				prize1 += prise[i];
+				w1 += w[i];
+			}
+			if (b[i])
+			{
+				prize2 += prise[i];
+				w2 += w[i];
+			}
+		}
+
+		if (w1 > 45)
+			return false;
+
+
+		return prize1 > prize2;
+	};
+
+	std::vector<bool*> genetic_population;
+	auto start = std::chrono::high_resolution_clock::now();
+	for (int i = 0; i < 5000; i++)
+	{
+		NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
+			return rand() % 2;
+		});
+		int prize1 = 0, w1 = 0;
+		for (int i = 0; i < 10; i++)
+		{
+			if (best[i])
+			{
+				std::cout << names[i] << " ";
+				prize1 += prise[i];
+				w1 += w[i];
+			}
+		}
+		std::cout << "\npr = " << prize1 << " w = " << w1 << "\n";
+		if (w1 == 43) {
+			std::cout << "ended at i = " << i << std::endl;
+			break;
+		}
+		//Sleep(50);
+	}
+	auto finish = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
+
+
 	//srand(time(NULL));
-	//NEN::NeuronNetwork n(2, 1, 1, 22, NEN::Adam);
+	NEN::NeuronNetwork n(2, 1, 4, 20, NEN::Adam);
+	n.genetic_population_size = 90;
+	n.genetic_elite_part = 10;
+	n.rate = 0.17;
+	//n.genetic_elite_part = 5;
 	//n.rate = 0.1;
 	//n.rate = 0.02;
 	//n.d_epsilon = 0.000000001;
@@ -12,21 +110,6 @@ int main()
 
 	//n.setMultiThreads(false);
 	//n.enable_shuffle = false;
-
-	// image
-	//NEN::NeuronNetwork n2(2, 3, 1, 34, NEN::Adam);
-	NEN::NeuronNetwork n2(2, 3, 2, 31, NEN::Adam);
-	n2.rate = 0.004;
-	n2.d_epsilon = 0.00000000001;
-	n2.setMultiThreads(true);
-	n2.enable_shuffle = true;
-	n2.loadTrainData("../../tests/data/logo_memory_15600.data");
-	auto start = std::chrono::high_resolution_clock::now();
-	n2.train(std::vector<std::vector<double>>(), std::vector<std::vector<double>>(), 5.55);
-	auto finish = std::chrono::high_resolution_clock::now();
-	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
-	std::cout << "time: " << diff << " ms" << std::endl;
-
 
 	//n.momentum = 0.7;
 	//NeuronNetwork n(2, 1, 25, 25, Adagrad);
@@ -120,7 +203,6 @@ int main()
 	//n.saveFile("mul.ner");
 	
 	*/
-
 	//n.setAutoSaveFile("add.ner");
 	//n.loadTrainData("add.data");
 	//n.trainWhileError(0, 0.5);
@@ -199,6 +281,9 @@ int main()
 #endif
 #if 0
 
+	auto a = std::vector<std::vector<double>>{ { 0, 0 },{ 1, 0 },{ 0, 1 },{ 1, 1 } };
+	auto b = std::vector<std::vector<double>>{ { 0 },{ 1 },{ 1 },{ 0 } };
+
 	auto start = std::chrono::high_resolution_clock::now();
 	double e = 1;
 	std::vector<double> errs = {1, 1, 1, 1};
@@ -228,7 +313,7 @@ int main()
 		});
 	};
 	//n.iterations_limit = 100;
-	n.train(a, b, 0.5, fitness);
+	n.train(a, b, 0.2, fitness);
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
 	std::cout << "it: " << n.iterations << "\n";
