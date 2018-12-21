@@ -1,8 +1,11 @@
 #include "nen.hpp"
+#if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
+#endif
 
-int main()
+int main(int argc, char* argv[])
 {
+	srand(argc > 1 ? atoi(argv[1]) : 1);
 	bool* best = new bool[10];
 	for (int i = 0; i < 10; i++)
 		best[i] = rand() % 2;
@@ -62,7 +65,7 @@ int main()
 		}
 
 		if (w1 > 45)
-			return false;
+			return w1 < w2;
 
 
 		return prize1 > prize2;
@@ -70,7 +73,7 @@ int main()
 
 	std::vector<bool*> genetic_population;
 	auto start = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < 5000; i++)
+	for (int i = 0; true; i++)
 	{
 		NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
 			return rand() % 2;
