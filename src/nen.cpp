@@ -64,8 +64,12 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		if (w1 > 45)
+        if (w1 > 45 && w2 > 45)
 			return w1 < w2;
+        else if(w1 > 45)
+            return false;
+        else if(w2 > 45)
+            return true;
 
 
 		return prize1 > prize2;
@@ -73,28 +77,34 @@ int main(int argc, char* argv[])
 
 	std::vector<bool*> genetic_population;
 	auto start = std::chrono::high_resolution_clock::now();
-	for (int i = 0; true; i++)
-	{
-		NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
-			return rand() % 2;
-		});
-		int prize1 = 0, w1 = 0;
-		for (int i = 0; i < 10; i++)
-		{
-			if (best[i])
-			{
-				std::cout << names[i] << " ";
-				prize1 += prise[i];
-				w1 += w[i];
-			}
-		}
-		std::cout << "\npr = " << prize1 << " w = " << w1 << "\n";
-		if (w1 == 43) {
-			std::cout << "ended at i = " << i << std::endl;
-			break;
-		}
-		//Sleep(50);
-	}
+    for (int j = 0; j < 5000; j++)
+    {
+        for (int i = 0; i < 10; i++)
+            best[i] = rand() % 2;
+        genetic_population.clear();
+
+        for (int i = 0; true; i++)
+        {
+            NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
+                return rand() % 2;
+            }, 50);
+            int prize1 = 0, w1 = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                if (best[i])
+                {
+                    std::cout << names[i] << " ";
+                    prize1 += prise[i];
+                    w1 += w[i];
+                }
+            }
+            std::cout << "\npr = " << prize1 << " w = " << w1 << " j = " << j << "\n";
+            if (w1 == 43) {
+                std::cout << "ended at i = " << i << std::endl;
+                break;
+            }
+        }
+    }
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
