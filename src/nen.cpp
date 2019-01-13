@@ -1,8 +1,12 @@
 #include "nen.hpp"
+#if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
+#endif
 
-int main()
+int main(int argc, char* argv[])
 {
+    srand(argc > 1 ? atoi(argv[1]) : 1);
+    /*
 	bool* best = new bool[10];
 	for (int i = 0; i < 10; i++)
 		best[i] = rand() % 2;
@@ -61,8 +65,12 @@ int main()
 			}
 		}
 
-		if (w1 > 45)
-			return false;
+        if (w1 > 45 && w2 > 45)
+			return w1 < w2;
+        else if(w1 > 45)
+            return false;
+        else if(w2 > 45)
+            return true;
 
 
 		return prize1 > prize2;
@@ -70,32 +78,110 @@ int main()
 
 	std::vector<bool*> genetic_population;
 	auto start = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < 5000; i++)
-	{
-		NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
-			return rand() % 2;
-		});
-		int prize1 = 0, w1 = 0;
-		for (int i = 0; i < 10; i++)
-		{
-			if (best[i])
-			{
-				std::cout << names[i] << " ";
-				prize1 += prise[i];
-				w1 += w[i];
-			}
-		}
-		std::cout << "\npr = " << prize1 << " w = " << w1 << "\n";
-		if (w1 == 43) {
-			std::cout << "ended at i = " << i << std::endl;
-			break;
-		}
-		//Sleep(50);
-	}
+    for (int j = 0; j < 5000; j++)
+    {
+        for (int i = 0; i < 10; i++)
+            best[i] = rand() % 2;
+        genetic_population.clear();
+
+        for (int i = 0; true; i++)
+        {
+            NEN::genetic<bool>(f, genetic_population, best, 10, [](bool prev, bool initial) -> bool {
+                return rand() % 2;
+            }, 50);
+            int prize1 = 0, w1 = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                if (best[i])
+                {
+                    std::cout << names[i] << " ";
+                    prize1 += prise[i];
+                    w1 += w[i];
+                }
+            }
+            std::cout << "\npr = " << prize1 << " w = " << w1 << " j = " << j << "\n";
+            if (w1 == 43) {
+                std::cout << "ended at i = " << i << std::endl;
+                break;
+            }
+        }
+    }
 	auto finish = std::chrono::high_resolution_clock::now();
 	auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 	std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
+    */
 
+    const int howMuch = 90;
+	bool* best = new bool[howMuch];
+    int prise[howMuch];
+    std::string names[howMuch];
+    int w[howMuch];
+    for(int i = 0; i < howMuch; i++) {
+        names[i] = "item" + std::to_string(i);
+        w[i] = 1 + rand() % 100;
+        prise[i] = 1 + rand() % 1000;
+        best[i] = rand() % 2;
+    }
+    auto f = [&](bool* a, bool* b)
+    {
+        int prize1 = 0, prize2 = 0, w1 = 0, w2 = 0;
+        for (int i = 0; i < howMuch; i++)
+        {
+            if (a[i])
+            {
+                prize1 += prise[i];
+                w1 += w[i];
+            }
+            if (b[i])
+            {
+                prize2 += prise[i];
+                w2 += w[i];
+            }
+        }
+
+        if (w1 > 90 && w2 > 90)
+            return w1 < w2;
+        else if(w1 > 90)
+            return false;
+        else if(w2 > 90)
+            return true;
+
+
+        return prize1 > prize2;
+    };
+
+    srand(40);
+    std::vector<bool*> genetic_population;
+    auto start = std::chrono::high_resolution_clock::now();
+    int i = 0;
+//    for (i = 0; true; i++)
+//    {
+        NEN::genetic_async<bool>(i, f, genetic_population, best, howMuch, [](bool prev, bool initial) -> bool {
+            return rand() % 2;
+        }, [&](){
+            int prize1 = 0, w1 = 0;
+            for (int i = 0; i < howMuch; i++)
+            {
+                if (best[i])
+                {
+                    std::cout << names[i] << " ";
+                    prize1 += prise[i];
+                    w1 += w[i];
+                }
+            }
+            std::cout << "\npr = " << prize1 << " w = " << w1 << " i = " << i << "\n";
+			if (w1 == 87 && prize1 == 7614) {
+			    std::cout << "ended at i = " << i << std::endl;
+                return false;
+            }
+            return true;
+        }, 150, 8);
+
+//    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+    std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
+    std::cout << "aprox: " << ((double)diff / (1000 * 1000)) / i << " ms per op" << std::endl;
 
 	//srand(time(NULL));
 	NEN::NeuronNetwork n(2, 1, 4, 20, NEN::Adam);
