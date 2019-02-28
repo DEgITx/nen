@@ -152,7 +152,6 @@ int main(int argc, char* argv[])
 
     srand(40);
     std::vector<bool*> genetic_population;
-    auto start = std::chrono::high_resolution_clock::now();
     int i = 0;
 //    for (i = 0; true; i++)
 //    {
@@ -171,17 +170,12 @@ int main(int argc, char* argv[])
             }
             std::cout << "\npr = " << prize1 << " w = " << w1 << " i = " << i << "\n";
 			if (w1 == 87 && prize1 == 7614) {
-			    std::cout << "ended at i = " << i << std::endl;
-                return false;
+			    return false;
             }
             return true;
         }, 150, 8);
 
 //    }
-    auto finish = std::chrono::high_resolution_clock::now();
-    auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-    std::cout << "time: " << diff / (1000 * 1000) << " ms" << std::endl;
-    std::cout << "aprox: " << ((double)diff / (1000 * 1000)) / i << " ms per op" << std::endl;
 
 	//srand(time(NULL));
 	NEN::NeuronNetwork n(2, 1, 4, 20, NEN::Adam);

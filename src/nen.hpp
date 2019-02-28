@@ -31,6 +31,14 @@ void cudaFree(void* devPtr)
 }
 #endif
 
+//#if defined(_DEBUG) || defined(DEBUG)
+#define DEBUG_NEN true
+//#endif
+
+#if DEBUG_NEN
+#define NEN_DEBUG(f_, ...) printf((f_), ##__VA_ARGS__)
+#endif
+
 namespace NEN
 {
 
@@ -471,6 +479,10 @@ namespace NEN
 		// copy elite to all threaded generations, for try it suvive ability
 		unsigned elite = genetic_population_size / genetic_elite_part;
 
+#ifdef NEN_DEBUG
+		auto gen_start = std::chrono::high_resolution_clock::now();
+#endif
+
         bool check = true;
 #pragma omp parallel
         {
@@ -506,6 +518,15 @@ namespace NEN
                 //    break;
             }
         }
+
+#ifdef NEN_DEBUG
+		auto gen_finish = std::chrono::high_resolution_clock::now();
+		auto gen_diff = std::chrono::duration_cast<std::chrono::nanoseconds>(gen_finish - gen_start).count();
+
+		std::cout << "iterations = " << iteration << std::endl;
+		std::cout << "time = " << gen_diff / (1000 * 1000) << " ms" << std::endl;
+		std::cout << "aprox = " << ((double)gen_diff / (1000 * 1000)) / iteration << " ms per op" << std::endl;
+#endif
     }
 
 	struct NeuronNetwork
