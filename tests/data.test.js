@@ -67,7 +67,7 @@ test('mul', () => {
   console.log('mul iterations', network.iterations())
   expect(errors.length).toBe(mulOutput.length);
   expect(Math.exp(deNorm(network.forward(norm([log(8), log(8)], 0, 10)), 0, 10))).toBeGreaterThan(60)
-  expect(Math.exp(deNorm(network.forward(norm([log(8), log(8)], 0, 10)), 0, 10))).toBeLessThan(68)
+  expect(Math.exp(deNorm(network.forward(norm([log(8), log(8)], 0, 10)), 0, 10))).toBeLessThan(70)
   expect(Math.exp(deNorm(network.forward(norm([log(4), log(5)], 0, 10)), 0, 10))).toBeGreaterThan(16)
   expect(Math.exp(deNorm(network.forward(norm([log(4), log(5)], 0, 10)), 0, 10))).toBeLessThan(24)
 });

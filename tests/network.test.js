@@ -54,7 +54,7 @@ test('async xor network', async () => {
   await network.train(inputData, outputData, { error: 0.5 });
   const output1 = network.forward([1, 0])[0];
   const output2 = network.forward([0, 0])[0];
-  expect(output1).toBeGreaterThan(0.895);
+  expect(output1).toBeGreaterThan(0.89);
   expect(output2).toBeLessThan(0.1);
 });
 
