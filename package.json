@@ -8,12 +8,12 @@
     "url": "https://github.com/DEgITx/nen.git"
   },
   "scripts": {
-    "test": "jest --testEnvironment node -i --verbose",
+    "test": "jest -i --verbose",
     "watchtest": "jest --watch",
     "install": "node build.js"
   },
   "author": "Alexey Kasyanchuk <degitx@gmail.com>",
-  "copyright": "Copyright © 2018 Alexey Kasyanchuk",
+  "copyright": "Copyright © 2019 Alexey Kasyanchuk",
   "license": "ISC",
   "gypfile": true,
   "keywords": [
@@ -23,6 +23,6 @@
   ],
   "dependencies": {},
   "devDependencies": {
-    "jest": "^23.4.2"
+    "jest": "^24.8.0"
   }
 }

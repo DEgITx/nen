@@ -29,9 +29,10 @@ public:
 
 	  Methods(tpl);
 
-	  constructor.Reset(isolate, tpl->GetFunction());
+	  Local<Context> context = isolate->GetCurrentContext();
+	  constructor.Reset(isolate, tpl->GetFunction(context).ToLocalChecked());
 	  exports->Set(String::NewFromUtf8(isolate, "NeuralNetwork"),
-	               tpl->GetFunction());
+	               tpl->GetFunction(context).ToLocalChecked());
 	}
 
 	static void Methods(Local<FunctionTemplate>& tpl)
@@ -65,14 +66,16 @@ private:
 	static void New(const v8::FunctionCallbackInfo<v8::Value>& args)
 	{
 		Isolate* isolate = args.GetIsolate();
+		Local<Context> context = isolate->GetCurrentContext();
 
 		if (args.IsConstructCall()) 
 		{
 			// Invoked as constructor: `new MyObject(...)`
-			unsigned inputs = args[0]->IsUndefined() ? 0 : args[0]->NumberValue();
-			unsigned outputs = args[1]->IsUndefined() ? 0 : args[1]->NumberValue();
-			unsigned layers = args[2]->IsUndefined() ? 0 : args[2]->NumberValue();
-			unsigned neurons = args[3]->IsUndefined() ? 0 : args[3]->NumberValue();
+			
+			unsigned inputs = args[0]->IsUndefined() ? 0 : args[0]->NumberValue(context).ToChecked();
+			unsigned outputs = args[1]->IsUndefined() ? 0 : args[1]->NumberValue(context).ToChecked();
+			unsigned layers = args[2]->IsUndefined() ? 0 : args[2]->NumberValue(context).ToChecked();
+			unsigned neurons = args[3]->IsUndefined() ? 0 : args[3]->NumberValue(context).ToChecked();
 
 			NeuralNetwork* obj = new NeuralNetwork(inputs, outputs, layers, neurons);
 			obj->Wrap(args.This());
@@ -83,7 +86,6 @@ private:
 			// Invoked as plain function `MyObject(...)`, turn into construct call.
 			const int argc = 4;
 			Local<Value> argv[argc] = { args[0], args[1], args[2], args[3] };
-			Local<Context> context = isolate->GetCurrentContext();
 			Local<Function> cons = Local<Function>::New(isolate, constructor);
 			Local<Object> result = cons->NewInstance(context, argc, argv).ToLocalChecked();
 			args.GetReturnValue().Set(result);
@@ -106,40 +108,44 @@ private:
 
 	static void Save(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  if(args[0]->IsString())
 	  {
-	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	v8::String::Utf8Value fileName(isolate, args[0]->ToString(context).ToLocalChecked());
 	  	network->saveFile(std::string(*fileName));
 	  }
 	}
 
 	static void Load(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  if(args[0]->IsString())
 	  {
-	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	v8::String::Utf8Value fileName(isolate, args[0]->ToString(context).ToLocalChecked());
 	  	network->loadFile(std::string(*fileName));
 	  }
 	}
 
 	static void LoadData(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  if(args[0]->IsString())
 	  {
-	  	v8::String::Utf8Value fileName(args[0]->ToString());
+	  	v8::String::Utf8Value fileName(isolate, args[0]->ToString(context).ToLocalChecked());
 	  	network->loadTrainData(std::string(*fileName));
 	  }
 	}
 
-	static std::vector<double> toVector(Isolate* isolate, const Handle<Value>& value)
+	static std::vector<double> toVector(Isolate* isolate, const Local<Value>& value)
 	{
-	  Handle<Array> values = Handle<Array>::Cast(value);
+	  Local<Context> context = isolate->GetCurrentContext();
+	  Local<Array> values = Local<Array>::Cast(value);
 	  if(!values->IsArray())
 	  {
 	  	isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Wrong arguments")));
@@ -149,19 +155,19 @@ private:
 	  int length = values->Length();
 	  for(int i = 0; i < length; i++)
 	  {
-	  	values_c.push_back(values->Get(i)->NumberValue());
+	  	values_c.push_back(values->Get(i)->NumberValue(context).ToChecked());
 	  }
 
 	  return values_c;
 	}
 
-	static std::vector<std::vector<double>> toVectorVector(Isolate* isolate, const Handle<Value>& value)
+	static std::vector<std::vector<double>> toVectorVector(Isolate* isolate, const Local<Value>& value)
 	{
 	  if(!value->IsArray())
 	  {
 	  	isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Wrong arguments")));
 	  }
-	  Handle<Array> values = Handle<Array>::Cast(value);
+	  Local<Array> values = Local<Array>::Cast(value);
 	  std::vector<std::vector<double>> values_c;
 	  int length = values->Length();
 	  for(int i = 0; i < length; i++)
@@ -171,9 +177,9 @@ private:
 	  return values_c;
 	}
 
-	static Handle<Array> toArray(Isolate* isolate, const std::vector<double>& values)
+	static Local<Array> toArray(Isolate* isolate, const std::vector<double>& values)
 	{
-		Handle<Array> arr = Array::New(isolate);
+		Local<Array> arr = Array::New(isolate);
 	  	for(int i = 0; i < values.size(); i++)
 	  		arr->Set(i, Number::New(isolate, values[i]));
 
@@ -182,6 +188,7 @@ private:
 
 	static void Forward(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  std::vector<double> inputs_values = toVector(isolate, args[0]);
@@ -189,7 +196,7 @@ private:
 
 	  if(args[1]->IsNumber())
 	  {
-	  	pointer = (double*)((uintptr_t)args[1]->NumberValue());
+	  	pointer = (double*)((uintptr_t)args[1]->NumberValue(context).ToChecked());
 	  }
 
 	  if(pointer)
@@ -198,13 +205,14 @@ private:
 	 	network->forward(inputs_values);
 	  
 	  auto outputs = network->output();
-	  Handle<Array> out = toArray(isolate, outputs);
+	  Local<Array> out = toArray(isolate, outputs);
 
 	  args.GetReturnValue().Set(out);
 	}
 
 	static void Error(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  std::vector<double> outputs_values = toVector(isolate, args[0]);
@@ -214,7 +222,7 @@ private:
 	  	double* pointer = nullptr;
 	  	if(args[2]->IsNumber())
 	    {
-	  	   pointer = (double*)((uintptr_t)args[2]->NumberValue());
+	  	   pointer = (double*)((uintptr_t)args[2]->NumberValue(context).ToChecked());
 	    }
 	    if(pointer)
 	  	  network->forward(inputs_values, pointer);
@@ -229,6 +237,7 @@ private:
 
 	static void Train(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
 	  bool async = true;
@@ -238,10 +247,10 @@ private:
 
 	  if(!args[2]->IsUndefined() && args[2]->IsObject())
 	  {
-	  	Handle<Object> options = Handle<Object>::Cast(args[2]);
-	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue();
-	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue();
-	  	network->iterations_limit = (unsigned long long)options->Get(String::NewFromUtf8(isolate, "iterations"))->NumberValue();
+	  	Local<Object> options = Local<Object>::Cast(args[2]);
+	  	error_target = options->Get(String::NewFromUtf8(isolate, "error"))->NumberValue(context).ToChecked();
+	  	async = !options->Get(String::NewFromUtf8(isolate, "sync"))->BooleanValue(context).ToChecked();
+	  	network->iterations_limit = (unsigned long long)options->Get(String::NewFromUtf8(isolate, "iterations"))->NumberValue(context).ToChecked();
 	  	if(options->Get(String::NewFromUtf8(isolate, "iteration"))->IsFunction())
 	  	{
 	  		iteration_callback = Local<Function>::Cast(options->Get(String::NewFromUtf8(isolate, "iteration")));
@@ -261,7 +270,7 @@ private:
 
 	  	if(args[0]->IsArray())
 	  	{
-	  		if(Handle<Array>::Cast(args[0])->Get(0)->IsArray())
+	  		if(Local<Array>::Cast(args[0])->Get(0)->IsArray())
 		  	{
 		  		inputs = toVectorVector(isolate, args[0]);
 		  		outputs = toVectorVector(isolate, args[1]);
@@ -282,7 +291,7 @@ private:
 	  	if(async)
 	  	{
 	  		Persistent<Promise::Resolver, CopyablePersistentTraits<Promise::Resolver>> persistent;
-	  		persistent.Reset(isolate, v8::Promise::Resolver::New(isolate));
+	  		persistent.Reset(isolate, v8::Promise::Resolver::New(context).ToLocalChecked());
 	  		v8::Local<v8::Promise::Resolver> resolver = v8::Local<v8::Promise::Resolver>::New(isolate, persistent);
 	  		args.GetReturnValue().Set(resolver->GetPromise());
 
@@ -347,18 +356,18 @@ private:
 				v8::HandleScope scope(isolate);
 
 				Local<Function> iteration_callback;
-				auto context = isolate->GetCurrentContext()->Global();
+				Local<Context> context = isolate->GetCurrentContext();
 
 				if(data->iteration_callback_use)
 				{
 					iteration_callback = Local<Function>::New(isolate, data->iteration_callback);
 					data->network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
 		  			{
-		  				Handle<Value> argv[] = {
+		  				Local<Value> argv[] = {
 							Number::New(isolate, iteration),
 							Number::New(isolate, error)
 						};
-						iteration_callback->Call(context, 2, argv);
+						iteration_callback->Call(context, Null(isolate), 2, argv);
 		  			};
 				}
 
@@ -370,17 +379,17 @@ private:
   					auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 						return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
 						[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
-							Handle<Value> argv[] = { 
+							Local<Value> argv[] = { 
 								Number::New(isolate, (uintptr_t)c), 
 								Number::New(isolate, (uintptr_t)d), 
 								Number::New(isolate, iteration)
 							};
-							return fitness->Call(context, 3, argv)->BooleanValue();
+							return fitness->Call(context, Null(isolate), 3, argv).ToLocalChecked()->BooleanValue(context).ToChecked();
 						}, [&network, &context, &isolate, &fitness_error, iteration]() -> double {
-							Handle<Value> argv[] = { 
+							Local<Value> argv[] = { 
 								Number::New(isolate, iteration)
 							};
-							return fitness_error->Call(context, 1, argv)->NumberValue();
+							return fitness_error->Call(context, Null(isolate), 1, argv).ToLocalChecked()->NumberValue(context).ToChecked();
 						});
 					};
 					data->errors = network->train(data->inputs, data->outputs, data->error_target, fitness_func);
@@ -391,7 +400,7 @@ private:
 				}
 
 				v8::Local<v8::Promise::Resolver> local = v8::Local<v8::Promise::Resolver>::New(isolate, data->persistent);
-				local->Resolve(toArray(isolate, data->errors));
+				local->Resolve(context, toArray(isolate, data->errors));
 				
 				data->persistent.Reset();
 				delete data;
@@ -399,16 +408,17 @@ private:
 	  	}
 	  	else
 	  	{
-	  		auto context = isolate->GetCurrentContext()->Global();
+	  		Local<Context> context = isolate->GetCurrentContext();
+
 	  		if(iteration_callback_use)
 	  		{
 	  			network->iteration_callback = [&isolate, &context, &iteration_callback](unsigned long long iteration, double error)
 	  			{
-	  				Handle<Value> argv[] = {
+	  				Local<Value> argv[] = {
 						Number::New(isolate, iteration),
 						Number::New(isolate, error)
 					};
-					iteration_callback->Call(context, 2, argv);
+					iteration_callback->Call(context, Null(isolate), 2, argv);
 	  			};
 	  		}
 
@@ -419,17 +429,17 @@ private:
 		  		auto fitness_func = [&isolate, &context, &fitness, &fitness_error, &network](unsigned long long iteration) -> std::pair<std::function<bool(double*, double*)>, std::function<double()>> {
 					return std::pair<std::function<bool(double*, double*)>, std::function<double()>>(
 					[&isolate, &context, &fitness, &network, iteration](double* c, double* d) -> bool {
-						Handle<Value> argv[] = { 
+						Local<Value> argv[] = { 
 							Number::New(isolate, (uintptr_t)c), 
 							Number::New(isolate, (uintptr_t)d),
 							Number::New(isolate, iteration)
 						};
-						return fitness->Call(context, 3, argv)->BooleanValue();
+						return fitness->Call(context, Null(isolate), 3, argv).ToLocalChecked()->BooleanValue(context).ToChecked();
 					}, [&network, &context, &isolate, &fitness_error, iteration]() -> double {
-						Handle<Value> argv[] = {
+						Local<Value> argv[] = {
 							Number::New(isolate, iteration)
 						};
-						return fitness_error->Call(context, 1, argv)->NumberValue();
+						return fitness_error->Call(context, Null(isolate), 1, argv).ToLocalChecked()->NumberValue(context).ToChecked();
 					});
 				};
 	  			errors = network->train(inputs, outputs, error_target, fitness_func);
@@ -451,79 +461,90 @@ private:
 
 	static void setAlgorithm(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->algorithm = (NEN::TrainingAlgorithm)((int)args[0]->NumberValue());
+	  network->algorithm = (NEN::TrainingAlgorithm)((int)args[0]->NumberValue(context).ToChecked());
 	}
 
 	static void setRate(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->rate = args[0]->NumberValue();
+	  network->rate = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setActivation(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->activation = (NEN::ActivationFunction)((int)args[0]->NumberValue());
+	  network->activation = (NEN::ActivationFunction)((int)args[0]->NumberValue(context).ToChecked());
 	}
 
 	static void setMoment(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->momentum = args[0]->NumberValue();
+	  network->momentum = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setDEpsilon(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->d_epsilon = args[0]->NumberValue();
+	  network->d_epsilon = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setBeta1(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->beta1 = args[0]->NumberValue();
+	  network->beta1 = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setBeta2(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->beta2 = args[0]->NumberValue();
+	  network->beta2 = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setPopulation(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->genetic_population_size = args[0]->NumberValue();
+	  network->genetic_population_size = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setElitePart(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->genetic_elite_part = args[0]->NumberValue();
+	  network->genetic_elite_part = args[0]->NumberValue(context).ToChecked();
 	}
 
 	static void setShuffle(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->enable_shuffle = args[0]->BooleanValue();
+	  network->enable_shuffle = args[0]->BooleanValue(context).ToChecked();
 	}
 
 	static void setMultiThreads(const FunctionCallbackInfo<Value>& args) {
 	  Isolate* isolate = args.GetIsolate();
+	  Local<Context> context = isolate->GetCurrentContext();
 	  NEN::NeuronNetwork* network = ObjectWrap::Unwrap<NeuralNetwork>(args.Holder())->network;
 
-	  network->setMultiThreads(args[0]->BooleanValue());
+	  network->setMultiThreads(args[0]->BooleanValue(context).ToChecked());
 	}
 };
 
