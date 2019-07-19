@@ -146,7 +146,13 @@ namespace NEN
 		for (int i = 0; i < outputs_size; ++i)
 		{
 			double delta_ = targets[threadId * outputs_size + i] - outputs[threadId * neurons_size + i + outputs_offset];
-			delta[threadId * neurons_size + i + outputs_offset] = delta_ * transferFunctionDerivative(outputs[threadId * neurons_size + i + outputs_offset], activation);
+			double derivative = transferFunctionDerivative(outputs[threadId * neurons_size + i + outputs_offset], activation);
+			// Fix overloaded neurons on big sized nets
+			if (activation == Sigmoid && std::abs(delta_) > 0.0001 && std::abs(derivative) < 0.0001)
+			{
+				derivative = 0.03;
+			}
+			delta[threadId * neurons_size + i + outputs_offset] = delta_ * derivative;
 		}
 	}
 
@@ -184,7 +190,13 @@ namespace NEN
 				{
 					dow += weightes[current_layer_weight_offset + i * next_layer_size + n] * delta[threadId * neurons_size + next_layer_offset_neuron + n];
 				}
-				delta[threadId * neurons_size + i + current_layer_offset_neuron] = dow * transferFunctionDerivative(outputs[threadId * neurons_size + i + current_layer_offset_neuron], activation);
+				double derivative = transferFunctionDerivative(outputs[threadId * neurons_size + i + current_layer_offset_neuron], activation);
+				// Fix overloaded neurons on big sized nets
+				if (activation == Sigmoid && std::abs(dow) > 0.0001 && std::abs(derivative) < 0.0001)
+				{
+					derivative = 0.03;
+				}
+				delta[threadId * neurons_size + i + current_layer_offset_neuron] = dow * derivative;
 			}
 		}
 	}
