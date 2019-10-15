@@ -37,6 +37,8 @@ void cudaFree(void* devPtr)
 
 #if DEBUG_NEN
 #define NEN_DEBUG(f_, ...) printf((f_), ##__VA_ARGS__)
+#else
+#define NEN_DEBUG(f_, ...) 
 #endif
 
 namespace NEN
@@ -361,7 +363,7 @@ namespace NEN
 	static int threads_max = 1;
 
 	template<typename T>
-    void genetic(
+    void genetic_step(
         int tid,
 		const std::function<bool(T*, T*)>& genetic_fitness,
 		std::vector<T*>& genetic_population,
@@ -377,7 +379,6 @@ namespace NEN
 		// sort population
         std::sort(genetic_population.begin() + tid * genetic_population_size, genetic_population.begin() + (tid + 1) * genetic_population_size, genetic_fitness);
 		unsigned elite = genetic_population_size / genetic_elite_part;
-
 
 		// out best result
         if(tid == 0) {
@@ -429,12 +430,11 @@ namespace NEN
 				}
             }
         }
-        //iterations++;
     }
 
     template<typename T>
     void genetic_async(
-        int& iteration,
+        unsigned long long& iteration,
         const std::function<bool(T*, T*)>& genetic_fitness,
         std::vector<T*>& genetic_population,
         T* neuron_weigths,
@@ -451,7 +451,8 @@ namespace NEN
         int threads = omp_get_max_threads();
         if (genetic_population.size() != genetic_population_size * threads)
         {
-            std::cout << "gen";
+			NEN_DEBUG("Initialize genetic algorithm with threads = %d, population_size = %d\n", threads, genetic_population_size);
+
             for (T* entity : genetic_population)
                 cudaFree(entity);
             if (genetic_population_allowed)
@@ -479,53 +480,45 @@ namespace NEN
 		// copy elite to all threaded generations, for try it suvive ability
 		unsigned elite = genetic_population_size / genetic_elite_part;
 
-#ifdef NEN_DEBUG
+#ifdef DEBUG_NEN
 		auto gen_start = std::chrono::high_resolution_clock::now();
 #endif
 
-        bool check = true;
-#pragma omp parallel
-        {
-            int tid = omp_get_thread_num();
-			while(check)
-            {
-                genetic<T>(tid, genetic_fitness, genetic_population, neuron_weigths, neuron_weigths_size, random, genetic_population_size, genetic_elite_part, genetic_populate, genetic_population_allowed);
+        do
+		{
+#pragma omp parallel for
+			for (int tid = 0; tid < threads; tid++)
+			{
+				genetic_step<T>(tid, genetic_fitness, genetic_population, neuron_weigths, neuron_weigths_size, random, genetic_population_size, genetic_elite_part, genetic_populate, genetic_population_allowed);
+			}
 
-#pragma omp barrier
+			for (int i = 0; i < threads; i++) {
+				for (int j = 0; j < elite; j++)
 				{
-					for (int i = 0; i < threads; i++) {
-						for (int j = 0; j < elite; j++)
-						{
-							for (int k = 0; k < threads; k++) {
-								if (k == i)
-									continue;
-								if (genetic_population_size - (i * elite) - j - 1 < elite) {
-									continue;
-								}
-								memcpy(genetic_population[k * genetic_population_size + genetic_population_size - (i * elite) - j - 1], genetic_population[i * genetic_population_size + j], neuron_weigths_size * sizeof(T));
-							}
+					for (int k = 0; k < threads; k++) {
+						if (k == i)
+							continue;
+						if (genetic_population_size - (i * elite) - j - 1 < elite) {
+							continue;
 						}
+						memcpy(genetic_population[k * genetic_population_size + genetic_population_size - (i * elite) - j - 1], genetic_population[i * genetic_population_size + j], neuron_weigths_size * sizeof(T));
 					}
 				}
+			}
 
-                #pragma omp single
-                {
-                    iteration++;
-                    check = condition();
-                }
+			iteration++;
+		} while (condition && condition());
 
-                //if(iteration > 60)
-                //    break;
-            }
-        }
+#ifdef DEBUG_NEN
+		if (condition)
+		{
+			auto gen_finish = std::chrono::high_resolution_clock::now();
+			auto gen_diff = std::chrono::duration_cast<std::chrono::nanoseconds>(gen_finish - gen_start).count();
 
-#ifdef NEN_DEBUG
-		auto gen_finish = std::chrono::high_resolution_clock::now();
-		auto gen_diff = std::chrono::duration_cast<std::chrono::nanoseconds>(gen_finish - gen_start).count();
-
-		std::cout << "iterations = " << iteration << std::endl;
-		std::cout << "time = " << gen_diff / (1000 * 1000) << " ms" << std::endl;
-		std::cout << "aprox = " << ((double)gen_diff / (1000 * 1000)) / iteration << " ms per op" << std::endl;
+			std::cout << "iterations = " << iteration << std::endl;
+			std::cout << "time = " << gen_diff / (1000 * 1000) << " ms" << std::endl;
+			std::cout << "aprox = " << ((double)gen_diff / (1000 * 1000)) / iteration << " ms per op" << std::endl;
+		}
 #endif
     }
 
@@ -1120,9 +1113,9 @@ namespace NEN
 		// genetic algorithm
 		void genetic(const std::function<bool(double*, double*)>& genetic_fitness)
 		{
-            NEN::genetic<double>(
-                0,
-				genetic_fitness,
+            NEN::genetic_async<double>(
+				iterations,
+                genetic_fitness,
 				genetic_population,
 				neuron_weigths,
 				neuron_weigths_size,
@@ -1137,12 +1130,12 @@ namespace NEN
 					ret = prev + (((double)rand() / (RAND_MAX)) * 2 - 1) * rate;
 					return ret;
 				},
+				NULL,
 				genetic_population_size,
 				genetic_elite_part,
 				genetic_populate,
 				&genetic_population_allowed
 			);
-			iterations++;
 		}
 	};
 

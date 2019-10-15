@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
 
     srand(40);
     std::vector<bool*> genetic_population;
-    int i = 0;
+    uint64_t i = 0;
 //    for (i = 0; true; i++)
 //    {
         NEN::genetic_async<bool>(i, f, genetic_population, best, howMuch, [](bool prev, bool initial) -> bool {
